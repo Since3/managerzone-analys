@@ -13,6 +13,8 @@ LEAGUE = "1"
 CUP = "6"
 
 RESULTS = ("V", "O", "F")
+EARLY_MINUTE = 10  # ändringar hit räknas som tidiga
+MASKING_SHARE = 0.3  # minst så stor andel av matcherna (och minst två) ger varning
 
 
 @dataclass
@@ -57,6 +59,7 @@ class MatchSummary:
     subs: int
     sub_minutes: list[int]
     starters: list[Starter] = field(default_factory=list)
+    attack_side: str | None = None  # vänster | höger | centralt (som i taktikeditorn)
     shape: formation.Formation | None = None
     opponent_shape: formation.Formation | None = None
     opponent_tactic: str | None = None
@@ -181,6 +184,19 @@ class TeamProfile:
                 out.setdefault(c.state or "okänd", Counter())[f"{c.kind}→{c.new_setting}"] += 1
         return out
 
+    def attack_sides(self) -> Counter:
+        return Counter(m.attack_side for m in self.matches if m.attack_side)
+
+    def early_changes(self, minute: int = EARLY_MINUTE) -> dict:
+        """Taktikändringar tidigt i matchen (möjlig maskeringstaktik)."""
+        hits = [m for m in self.matches
+                if any(c.minute is not None and c.minute <= minute for c in m.changes)]
+        changes = Counter(f"{c.kind}→{c.new_setting}" for m in hits for c in m.changes
+                          if c.minute is not None and c.minute <= minute)
+        n = len(self.matches)
+        return {"minute": minute, "matches": len(hits), "total": n, "changes": changes,
+                "masking": n > 0 and len(hits) >= 2 and len(hits) / n >= MASKING_SHARE}
+
     def change_minutes(self) -> list[int]:
         return sorted(c.minute for m in self.matches for c in m.changes if c.minute is not None)
 
@@ -266,6 +282,7 @@ def summarize(match: Match, team_id: int) -> MatchSummary:
         subs=len(subs),
         sub_minutes=[s.minute for s in subs if s.minute is not None],
         starters=starter_rows,
+        attack_side=formation.attack_side(own_f),
         shape=own_f,
         opponent_shape=opp_f,
         opponent_tactic=opp.tactic,

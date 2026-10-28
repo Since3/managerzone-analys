@@ -58,6 +58,7 @@ def scouting_json(profile: analysis.TeamProfile, opponent_home: bool | None,
                   league_matches=None, ratings=None, teams: dict[int, str] | None = None,
                   own: analysis.TeamProfile | None = None) -> dict:
     rec = recommend.recommend(profile, opponent_home, league_matches, ratings, own)
+    early = profile.early_changes()
     n = len(profile.matches)
     likely = {
         side: {k: {"value": v, "share": round(s, 2), "matches": m} for k, (v, s, m) in profile.most_likely(h).items()}
@@ -72,6 +73,8 @@ def scouting_json(profile: analysis.TeamProfile, opponent_home: bool | None,
         "likely": likely,
         "starters": [{"name": s.name, "role": s.role, "starts": k} for s, k in profile.regular_starters()[:16]],
         "changes_by_state": {k: dict(v) for k, v in profile.changes_by_state().items()},
+        "attack_sides": dict(profile.attack_sides()),
+        "early_changes": {**early, "changes": dict(early["changes"])},
         "matches_with_changes": sum(1 for m in profile.matches if m.changes),
         "avg_subs": round(sum(m.subs for m in profile.matches) / n, 1) if n else 0,
         "matches": [

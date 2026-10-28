@@ -120,6 +120,29 @@ def average_shape(formations: list[Formation]) -> list[tuple[float, float]] | No
     ]
 
 
+# Anfallssida: spelare i offensiva halvan som står utanför mittenbanan räknas per kant.
+ATTACK_SIDE_DEPTH = 550.0
+SIDE_LANE = 250.0  # bredd < 250 = vänster, > 500 = höger (planen är 750 bred)
+
+
+def attack_side(f: Formation | None) -> str | None:
+    """'vänster', 'höger' eller 'centralt', sett som i taktikeditorn (laget anfaller uppåt).
+
+    Räknar offensiva spelare (djup ≥ ATTACK_SIDE_DEPTH) på respektive kant. Lika många på
+    båda kanterna, eller inga, ger 'centralt'.
+    """
+    if not f:
+        return None
+    advanced = [w for w, d in f.positions if d >= ATTACK_SIDE_DEPTH]
+    left = sum(1 for w in advanced if w < SIDE_LANE)
+    right = sum(1 for w in advanced if w > PITCH_WIDTH - SIDE_LANE)
+    if left > right:
+        return "vänster"
+    if right > left:
+        return "höger"
+    return "centralt"
+
+
 def to_editor(width: float, depth: float) -> tuple[int, int]:
     """Normaliserad position till taktikeditorns koordinater (x, y)."""
     return round(0.2555 * width + 8.4), round(max(63.0, 318 - 0.31 * depth))
