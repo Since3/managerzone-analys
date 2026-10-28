@@ -19,6 +19,11 @@ from .fetch import Client, FetchError
 from .stats import StatsXmlError, parse_stats
 
 STATIC = Path(__file__).with_name("static")
+STATIC_FILES = {
+    "/manifest.json": ("manifest.json", "application/manifest+json"),
+    "/icon-192.png": ("icon-192.png", "image/png"),
+    "/icon-512.png": ("icon-512.png", "image/png"),
+}
 
 
 def _option(o: recommend.Option) -> dict:
@@ -200,6 +205,9 @@ def make_handler(app: App):
             try:
                 if url.path in ("/", "/index.html"):
                     self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
+                elif url.path in STATIC_FILES:
+                    name, ctype = STATIC_FILES[url.path]
+                    self._send(200, (STATIC / name).read_bytes(), ctype)
                 elif url.path == "/api/upcoming":
                     self._json({"matches": app.upcoming(int(q["team"]))})
                 elif url.path == "/api/league":
@@ -235,11 +243,30 @@ def make_handler(app: App):
     return Handler
 
 
-def serve(client: Client, port: int = 8765, antal: int = 10, open_browser: bool = True) -> None:
+def lan_address() -> str | None:
+    """Datorns adress i det lokala nätverket (ingen trafik skickas)."""
+    import socket
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("192.168.0.1", 9))
+            return s.getsockname()[0]
+    except OSError:
+        return None
+
+
+def serve(client: Client, port: int = 8765, antal: int = 10, open_browser: bool = True,
+          lan: bool = False) -> None:
     app = App(client, antal)
-    server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(app))
+    server = ThreadingHTTPServer(("0.0.0.0" if lan else "127.0.0.1", port), make_handler(app))
     url = f"http://127.0.0.1:{port}/"
     print(f"Appen körs på {url}  (stäng med Ctrl+C)")
+    if lan:
+        ip = lan_address()
+        print("\nMOBIL: anslut mobilen till samma wifi och öppna")
+        print(f"   http://{ip or '<datorns-IP-adress>'}:{port}/")
+        print("Frågar Windows om brandväggen: välj Tillåt för privata nätverk.")
+        print("Använd inte det här läget på offentliga nätverk (kafé, hotell).\n")
     if open_browser:
         webbrowser.open(url)
     try:

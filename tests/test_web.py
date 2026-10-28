@@ -47,6 +47,12 @@ class WebTest(unittest.TestCase):
     def test_index(self):
         self.assertIn("MZ Scouting", self._get("/"))
 
+    def test_app_icon_and_manifest(self):
+        manifest = json.loads(self._get("/manifest.json"))
+        self.assertEqual(manifest["display"], "standalone")
+        with urllib.request.urlopen(self.base + "/icon-192.png") as r:
+            self.assertEqual(r.headers["Content-Type"], "image/png")
+
     def test_upcoming(self):
         data = json.loads(self._get("/api/upcoming?team=13659"))
         self.assertEqual(data["matches"], [{"mid": 999, "date": "2026-10-30 20:00:00", "home": False,

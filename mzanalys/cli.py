@@ -198,7 +198,8 @@ def cmd_liga(args) -> int:
 def cmd_webb(args) -> int:
     from . import web
 
-    web.serve(_client(args), port=args.port, antal=args.antal, open_browser=not args.ingen_webblasare)
+    web.serve(_client(args), port=args.port, antal=args.antal, open_browser=not args.ingen_webblasare,
+              lan=args.mobil)
     return 0
 
 
@@ -276,6 +277,7 @@ def main(argv: list[str] | None = None) -> int:
     w.add_argument("--port", type=int, default=8765)
     w.add_argument("--antal", type=int, default=10, help="antal senaste ligamatcher per motståndare")
     w.add_argument("--ingen-webblasare", action="store_true", help="öppna inte webbläsaren automatiskt")
+    w.add_argument("--mobil", action="store_true", help="nåbar från mobilen i samma nätverk (wifi)")
     w.set_defaults(func=cmd_webb)
 
     m = sub.add_parser("match", help="visa en enskild match")
