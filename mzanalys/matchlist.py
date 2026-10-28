@@ -95,6 +95,24 @@ def league_mids_from_xml(xml: str, league_types: tuple[str, ...] = ("series", "1
     return out
 
 
+def teams_from_match_info(xml: str) -> list[tuple[int, str]]:
+    """Lagen (id, namn) i match_info.php, hemmalaget först.
+
+    Struktur från användarskriptet Mazyar: Team[field=home|away]@id. Fel ger
+    rotelementet ManagerZone_Error.
+    """
+    root = ET.fromstring(xml)
+    if root.tag == "ManagerZone_Error" or root.find(".//ManagerZone_Error") is not None:
+        raise ValueError("ManagerZone svarade med ett fel för matchen.")
+    teams = []
+    for t in root.iter("Team"):
+        tid = t.get("id") or t.get("teamId")
+        if tid and tid.isdigit():
+            teams.append((t.get("field", ""), int(tid), t.get("name") or t.get("teamName") or tid))
+    teams.sort(key=lambda x: x[0] != "home")
+    return [(tid, name) for _, tid, name in teams]
+
+
 def match_types_in_xml(xml: str) -> dict[str, int]:
     root = ET.fromstring(xml)
     counts: dict[str, int] = {}

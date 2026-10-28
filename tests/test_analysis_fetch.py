@@ -20,6 +20,7 @@ def _season():
                                    away_setup=("wings", "offensive", "normal"), date="2026-10-05 20:00:00")),
         parse_stats(make_stats_xml(3, US, (44, "C"), (0, 2), home_shape=F_442,
                                    home_setup=("shortpass", "normal", "aggressive"), date="2026-10-08 20:00:00",
+                                   goal_minutes=((), (30, 80)),
                                    events='<Tactic teamId="11" type="playstyle" new_setting="offensive" time="62:00"/>')),
         parse_stats(make_stats_xml(4, US, (22, "A"), (3, 1), date="2026-10-12 20:00:00")),
     ]
@@ -42,19 +43,41 @@ class AnalysisTest(unittest.TestCase):
 
     def test_most_likely(self):
         likely = self.p.most_likely()
-        self.assertEqual(likely["formation"], ("4-2-1-3", 0.75))
-        self.assertEqual(likely["taktik"], ("wings", 0.75))
+        self.assertEqual(likely["formation"], ("4-2-1-3", 0.75, 4))
+        self.assertEqual(likely["taktik"], ("wings", 0.75, 4))
+        self.assertEqual(self.p.most_likely(home=False)["formation"], ("4-2-1-3", 1.0, 1))
 
     def test_opponents_and_changes(self):
         away_game = self.p.matches[2]
         self.assertEqual((away_game.opponent, away_game.opponent_formation), ("B", "5-3-2"))
-        self.assertEqual(self.p.matches[1].changes, ["62' playstyle→offensive"])
+        self.assertEqual([str(c) for c in self.p.matches[1].changes], ["62' playstyle→offensive (vid 0–1)"])
+        self.assertEqual(self.p.changes_by_state(), {"under": {"playstyle→offensive": 1}})
         self.assertEqual(self.p.results_by(lambda m: m.formation)["4-4-2"], {"V": 0, "O": 0, "F": 1})
+
+    def test_opponent_view_results(self):
+        # Sett från motståndarna: 4-4-2 mot oss gav 1 vinst (match 3) och 2 förluster.
+        self.assertEqual(self.p.results_by(lambda m: m.opponent_formation, True)["4-4-2"],
+                         {"V": 1, "O": 0, "F": 2})
+
+    def test_regular_starters(self):
+        starters = self.p.regular_starters()
+        self.assertEqual(len(starters), 11)
+        roles = {s.name: s.role for s, _ in starters}
+        self.assertEqual(roles["Keeper 11"], "målvakt")
+        self.assertEqual(roles["P11-1"], "försvar vänster")
+        self.assertEqual(roles["P11-9"], "anfall central")
 
     def test_report_renders(self):
         text = report.render(self.p)
-        self.assertIn("4-2-1-3 (75 %", text)
+        self.assertIn("formation **4-2-1-3** (75 %)", text)
         self.assertIn("| 2026-10-08 | H | C | 0–2 F | 4-4-2 |", text)
+
+    def test_scouting_report(self):
+        text = report.render_scouting(self.p)
+        for heading in ("## 1. Väntat upplägg", "## 2. Trolig startelva", "## 3. Hur de reagerar",
+                        "## 4. Vad har fungerat mot dem?", "Litet underlag"):
+            self.assertIn(heading, text)
+        self.assertIn("När de ligger under: playstyle→offensive (1)", text)
 
 
 class FakeResponse(io.BytesIO):
@@ -133,6 +156,14 @@ class MatchlistTest(unittest.TestCase):
                '<Match id="6" type="cup"><Team/><Team/></Match></ManagerZone_MatchList>')
         self.assertEqual(matchlist.league_mids_from_xml(xml), [5])
         self.assertEqual(matchlist.match_types_in_xml(xml), {"series": 1, "cup": 1})
+
+    def test_teams_from_match_info(self):
+        xml = ('<ManagerZone_MatchInfo><Match id="1628449780">'
+               '<Team field="away" id="13659" name="Vi"/><Team field="home" id="555" name="De"/>'
+               '</Match></ManagerZone_MatchInfo>')
+        self.assertEqual(matchlist.teams_from_match_info(xml), [(555, "De"), (13659, "Vi")])
+        with self.assertRaises(ValueError):
+            matchlist.teams_from_match_info("<ManagerZone_Error message='x'/>")
 
     def test_mids_from_text(self):
         self.assertEqual(matchlist.mids_from_text("1625669278, 1625669278\nmid=1637650666"),

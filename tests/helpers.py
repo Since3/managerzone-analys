@@ -18,15 +18,16 @@ F_532 = [(80, 280), (220, 230), (375, 220), (530, 230), (670, 280),
          (300, 720), (450, 720)]
 
 
-def _players(team_id: int, shape, keeper_at_top: bool, base_id: int) -> str:
+def _players(team_id: int, shape, keeper_at_top: bool, base_id: int, goal_minutes=()) -> str:
     out = []
     gk_y = 1000 if keeper_at_top else 0
     out.append(f'<Player id="{base_id}" teamId="{team_id}" name="Keeper {team_id}" shirtno="1" '
                f'goalkeeper="1" position="goalie" origin="375,{gk_y}"/>')
     for i, (w, d) in enumerate(shape, start=1):
         x, y = (w, 1000 - d) if keeper_at_top else (750 - w, d)
+        goals = "".join(f'<Goal time="{m}:00" clock="{m}:00" team="{team_id}"/>' for m in goal_minutes) if i == 9 else ""
         out.append(f'<Player id="{base_id + i}" teamId="{team_id}" name="P{team_id}-{i}" '
-                   f'shirtno="{i + 1}" position="normal" origin="{x:g},{y:g}"/>')
+                   f'shirtno="{i + 1}" position="normal" origin="{x:g},{y:g}">{goals}</Player>')
     out.append(f'<Player id="{base_id + 50}" teamId="{team_id}" name="Bench {team_id}" shirtno="20" origin=""/>')
     return "\n  ".join(out)
 
@@ -43,6 +44,7 @@ def make_stats_xml(
     date: str = "2026-10-21 14:45:00",
     events: str = "",
     match_type: str = "1",
+    goal_minutes: tuple[tuple[int, ...], tuple[int, ...]] = ((), ()),
 ) -> str:
     (hid, hname), (aid, aname) = home, away
     return f"""<?xml version="1.0" encoding="utf-8"?>
@@ -56,8 +58,8 @@ def make_stats_xml(
     <MetaData manager="mgr{aid}" series_name="div1.1"/>
     <Statistics goals="{score[1]}" possession="45" shotsOnGoal="3" shotsWide="5"/>
   </Team>
-  {_players(hid, home_shape, keeper_at_top=False, base_id=hid * 100)}
-  {_players(aid, away_shape, keeper_at_top=True, base_id=aid * 100)}
+  {_players(hid, home_shape, keeper_at_top=False, base_id=hid * 100, goal_minutes=goal_minutes[0])}
+  {_players(aid, away_shape, keeper_at_top=True, base_id=aid * 100, goal_minutes=goal_minutes[1])}
   <Events>
     {events}
   </Events>

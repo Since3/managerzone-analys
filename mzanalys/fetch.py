@@ -115,6 +115,10 @@ class Client:
         except (ValueError, AttributeError):
             return "okänt"
 
+    def match_info(self, mid: int) -> str:
+        """XML-gränssnittets matchinfo. Ger lagen även för matcher som inte spelats."""
+        return self._request(f"/xml/match_info.php?sport_id=1&match_id={mid}")
+
     # --- Matchlistor ---------------------------------------------------------
 
     def team_matchlist_xml(self, team_id: int, limit: int = 50) -> str:

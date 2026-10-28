@@ -1,4 +1,3 @@
-import re
 import unittest
 
 from mzanalys import formation
@@ -47,10 +46,16 @@ class ParseStatsTest(unittest.TestCase):
             parse_stats("<html><body></body></html>")
 
     def test_goals_from_players_when_statistics_missing(self):
-        xml = self.xml.replace('goals="2" possession', 'possession')
-        xml = re.sub(r'(<Player id="1109"[^>]*?)/>',
-                     r'\1><Goal time="10:00" team="11"/><Goal time="80:00" team="11"/></Player>', xml)
-        self.assertEqual(parse_stats(xml).team(11).goals, 2)
+        xml = make_stats_xml(1001, (11, "H"), (22, "B"), (2, 1), goal_minutes=((10, 80), (50,)))
+        xml = xml.replace('goals="2" possession', 'possession')
+        m = parse_stats(xml)
+        self.assertEqual(m.team(11).goals, 2)
+        self.assertEqual(m.score_at(11, 60), (1, 1))
+        self.assertEqual(m.score_at(22, 90), (1, 2))
+
+    def test_score_unknown_when_goal_events_missing(self):
+        # Slutresultat 2–1 men inga målhändelser: ställningen under matchen är okänd.
+        self.assertIsNone(self.m.score_at(11, 60))
 
 
 class FormationTest(unittest.TestCase):

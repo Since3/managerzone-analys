@@ -20,7 +20,29 @@ Bakgrunden till vilka data som finns och vilka begränsningar som gäller står 
 
 Python 3.10 eller senare. Inga andra beroenden.
 
-## Användning
+## Scouting av nästa motståndare
+
+Det här är huvudfunktionen. Ange ID för din kommande ligamatch och ditt eget lag-ID (på Windows skriver du `py` i stället för `python`):
+
+```bash
+python -m mzanalys motstandare --match 1628449780 --mitt-lag 13659
+```
+
+Verktyget tar reda på motståndaren, hämtar deras senaste 10 ligamatcher och skriver `scouting-<lag-ID>.md` med fem delar:
+
+1. **Väntat upplägg:** formation, taktik, spelstil och aggressivitet, totalt och uppdelat på hemma/borta.
+2. **Trolig startelva:** vilka som brukar starta och på vilken position.
+3. **Hur de reagerar under matchen:** ändringar när de leder, ligger lika eller ligger under.
+4. **Vad har fungerat mot dem:** resultat för deras motståndare per formation och upplägg.
+5. **Alla matcher** i en tabell.
+
+Hittar verktyget inte motståndaren eller deras matcher automatiskt kan du ange dem själv:
+
+```bash
+python -m mzanalys motstandare <deras lag-ID> <match-ID 1> <match-ID 2> …
+```
+
+## Övriga kommandon
 
 Kör från repots rotkatalog.
 

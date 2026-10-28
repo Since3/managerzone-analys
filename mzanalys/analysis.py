@@ -8,6 +8,33 @@ from dataclasses import dataclass, field
 from . import formation
 from .stats import Match
 
+# Matchtyper i SoccerStatistics@type, verifierade mot riktiga matcher 2026-10-28.
+LEAGUE = "1"
+CUP = "6"
+
+RESULTS = ("V", "O", "F")
+
+
+@dataclass
+class Change:
+    minute: int | None
+    kind: str  # tactic | playstyle | aggression
+    new_setting: str
+    state: str | None  # "leder", "lika", "under" vid ändringen, None om okänt
+    score: tuple[int, int] | None
+
+    def __str__(self) -> str:
+        m = f"{self.minute}'" if self.minute is not None else "?'"
+        s = f" (vid {self.score[0]}–{self.score[1]})" if self.score else ""
+        return f"{m} {self.kind}→{self.new_setting}{s}"
+
+
+@dataclass
+class Starter:
+    id: int
+    name: str
+    role: str  # t.ex. "försvar vänster"
+
 
 @dataclass
 class MatchSummary:
@@ -26,9 +53,10 @@ class MatchSummary:
     opponent_formation: str | None
     opponent_setup: str
     possession: str | None
-    changes: list[str]  # taktikändringar under matchen, t.ex. "62' playstyle→offensive"
+    changes: list[Change]
     subs: int
     sub_minutes: list[int]
+    starters: list[Starter] = field(default_factory=list)
 
     @property
     def result(self) -> str:
@@ -41,6 +69,10 @@ class MatchSummary:
         return "O"
 
     @property
+    def opponent_result(self) -> str:
+        return {"V": "F", "F": "V"}.get(self.result, self.result)
+
+    @property
     def setup(self) -> str:
         return _setup(self.tactic, self.playstyle, self.aggression)
 
@@ -49,19 +81,46 @@ def _setup(tactic, playstyle, aggression) -> str:
     return "/".join(x or "?" for x in (tactic, playstyle, aggression))
 
 
+def _state(score: tuple[int, int] | None) -> str | None:
+    if score is None:
+        return None
+    if score[0] > score[1]:
+        return "leder"
+    if score[0] < score[1]:
+        return "under"
+    return "lika"
+
+
+def _role(width: float, depth: float) -> str:
+    if depth <= formation.DEFENCE_MAX_DEPTH:
+        line = "försvar"
+    elif depth >= formation.ATTACK_MIN_DEPTH:
+        line = "anfall"
+    else:
+        line = "mittfält"
+    third = formation.PITCH_WIDTH / 3
+    side = "vänster" if width < third else "höger" if width > 2 * third else "central"
+    return f"{line} {side}"
+
+
+def _tally(results) -> dict[str, int]:
+    c = Counter(results)
+    return {r: c.get(r, 0) for r in RESULTS}
+
+
 @dataclass
 class TeamProfile:
     team_id: int
     name: str
     matches: list[MatchSummary] = field(default_factory=list)
 
-    def _count(self, attr: str) -> Counter:
-        return Counter(getattr(m, attr) for m in self.matches if getattr(m, attr))
+    def _count(self, attr: str, matches=None) -> Counter:
+        ms = self.matches if matches is None else matches
+        return Counter(getattr(m, attr) for m in ms if getattr(m, attr))
 
     @property
     def record(self) -> dict[str, int]:
-        c = Counter(m.result for m in self.matches)
-        return {k: c.get(k, 0) for k in ("V", "O", "F")}
+        return _tally(m.result for m in self.matches)
 
     @property
     def goals(self) -> tuple[int, int]:
@@ -87,48 +146,93 @@ class TeamProfile:
     def setups(self) -> Counter:
         return Counter(m.setup for m in self.matches)
 
-    def results_by(self, key) -> dict[str, dict[str, int]]:
-        """Resultat (V/O/F) grupperat på en egenskap, t.ex. formation eller upplägg."""
-        out: dict[str, Counter] = {}
+    def results_by(self, key, opponent_view: bool = False) -> dict[str, dict[str, int]]:
+        """Resultat (V/O/F) grupperat på en egenskap.
+
+        opponent_view=True räknar resultatet från motståndarens sida, alltså hur det
+        gick för lagen som mötte det analyserade laget.
+        """
+        groups: dict[str, list[str]] = {}
         for m in self.matches:
-            k = key(m) or "?"
-            out.setdefault(k, Counter())[m.result] += 1
-        return {k: {r: c.get(r, 0) for r in ("V", "O", "F")} for k, c in out.items()}
+            groups.setdefault(key(m) or "?", []).append(m.opponent_result if opponent_view else m.result)
+        return {k: _tally(v) for k, v in groups.items()}
 
     def change_patterns(self) -> Counter:
-        """Taktikändringar under matchen utan minut, t.ex. 'playstyle→offensive'."""
-        return Counter(c.split(" ", 1)[1] for m in self.matches for c in m.changes)
+        """Taktikändringar utan minut, t.ex. 'playstyle→offensive'."""
+        return Counter(f"{c.kind}→{c.new_setting}" for m in self.matches for c in m.changes)
+
+    def changes_by_state(self) -> dict[str, Counter]:
+        """Ändringar grupperade på ställningen när de gjordes: leder, lika, under."""
+        out: dict[str, Counter] = {}
+        for m in self.matches:
+            for c in m.changes:
+                out.setdefault(c.state or "okänd", Counter())[f"{c.kind}→{c.new_setting}"] += 1
+        return out
+
+    def change_minutes(self) -> list[int]:
+        return sorted(c.minute for m in self.matches for c in m.changes if c.minute is not None)
 
     def average_sub_minute(self) -> float | None:
         minutes = [x for m in self.matches for x in m.sub_minutes]
         return sum(minutes) / len(minutes) if minutes else None
 
-    def most_likely(self) -> dict[str, tuple[str, float]]:
-        """Vanligaste värdet och andelen matcher det förekom i (stabilitet)."""
-        n = len(self.matches) or 1
+    def most_likely(self, home: bool | None = None) -> dict[str, tuple[str, float, int]]:
+        """Vanligaste värdet, andelen matcher det förekom i och antal matcher.
+
+        home=True/False begränsar till hemma- respektive bortamatcher.
+        """
+        ms = [m for m in self.matches if home is None or m.home == home]
+        n = len(ms)
         out = {}
-        for label, counter in (
-            ("formation", self.formations()),
-            ("taktik", self.tactics()),
-            ("spelstil", self.playstyles()),
-            ("aggressivitet", self.aggressions()),
+        for label, attr in (
+            ("formation", "formation"),
+            ("taktik", "tactic"),
+            ("spelstil", "playstyle"),
+            ("aggressivitet", "aggression"),
         ):
+            counter = self._count(attr, ms)
             if counter:
                 value, count = counter.most_common(1)[0]
-                out[label] = (value, count / n)
+                out[label] = (value, count / n, n)
         return out
+
+    def regular_starters(self) -> list[tuple[Starter, int]]:
+        """Spelare sorterade på antal starter, med deras vanligaste roll."""
+        starts: Counter = Counter()
+        roles: dict[int, Counter] = {}
+        names: dict[int, str] = {}
+        for m in self.matches:
+            for s in m.starters:
+                starts[s.id] += 1
+                names[s.id] = s.name
+                roles.setdefault(s.id, Counter())[s.role] += 1
+        return [
+            (Starter(pid, names[pid], roles[pid].most_common(1)[0][0]), n)
+            for pid, n in starts.most_common()
+        ]
 
 
 def summarize(match: Match, team_id: int) -> MatchSummary:
     team = match.team(team_id)
     opp = match.opponent(team_id)
-    own_f = formation.derive(match.starters(team_id))
+    starters = match.starters(team_id)
+    own_f = formation.derive(starters)
     opp_f = formation.derive(match.starters(opp.id))
-    changes = [
-        f"{c.minute if c.minute is not None else '?'}' {c.kind}→{c.new_setting}"
-        for c in match.tactic_changes
-        if c.team_id == team_id
-    ]
+
+    changes = []
+    for c in match.tactic_changes:
+        if c.team_id != team_id:
+            continue
+        score = match.score_at(team_id, c.minute)
+        changes.append(Change(c.minute, c.kind, c.new_setting, _state(score), score))
+
+    starter_rows = []
+    if own_f:
+        outfield = [p for p in starters if not p.goalkeeper]
+        for p, (w, d) in zip(outfield, own_f.positions):
+            starter_rows.append(Starter(p.id, p.name, _role(w, d)))
+    starter_rows += [Starter(p.id, p.name, "målvakt") for p in starters if p.goalkeeper]
+
     subs = [s for s in match.substitutions if s.team_id == team_id]
     return MatchSummary(
         mid=match.mid,
@@ -149,12 +253,8 @@ def summarize(match: Match, team_id: int) -> MatchSummary:
         changes=changes,
         subs=len(subs),
         sub_minutes=[s.minute for s in subs if s.minute is not None],
+        starters=starter_rows,
     )
-
-
-# Matchtyper i SoccerStatistics@type, verifierade mot riktiga matcher 2026-10-28.
-LEAGUE = "1"
-CUP = "6"
 
 
 def build_profile(

@@ -103,6 +103,73 @@ def cmd_analysera(args) -> int:
     return 0 if profile.matches else 1
 
 
+def _opponent_mids(args, client: Client) -> list[int]:
+    """Motståndarens ligamatcher: angivna ID:n, sajtens lista (session) eller XML-listan."""
+    mids = _read_mids(args)
+    if mids:
+        return mids
+    if args.session:
+        return matchlist.league_mids_from_html(client.league_matchlist_html(args.lag))
+    xml = client.team_matchlist_xml(args.lag, limit=max(args.antal * 3, 50))
+    return matchlist.league_mids_from_xml(xml)
+
+
+def cmd_motstandare(args) -> int:
+    client = _client(args)
+    if args.match:
+        if not args.mitt_lag:
+            print("Ange ditt eget lag-ID med --mitt-lag, t.ex. --mitt-lag 13659.", file=sys.stderr)
+            return 2
+        try:
+            teams = matchlist.teams_from_match_info(client.match_info(args.match))
+        except Exception as e:
+            print(f"Kunde inte läsa matchen {args.match}: {e}\n"
+                  "Ange motståndarens lag-ID i stället (talet efter tid= i länken till deras lag).",
+                  file=sys.stderr)
+            return 1
+        others = [(tid, name) for tid, name in teams if tid != args.mitt_lag]
+        if len(teams) != 2 or len(others) != 1:
+            print(f"Hittade inte ditt lag ({args.mitt_lag}) bland lagen i matchen: {teams}", file=sys.stderr)
+            return 1
+        args.lag, name = others[0]
+        print(f"Nästa motståndare: {name} (lag-ID {args.lag})")
+    if not args.lag:
+        print("Ange motståndarens lag-ID, eller --match <match-ID> --mitt-lag <ditt lag-ID>.", file=sys.stderr)
+        return 2
+    try:
+        mids = _opponent_mids(args, client)
+    except Exception as e:  # matchlistan är obekräftad; ge en tydlig väg vidare
+        print(f"Kunde inte hämta lagets matchlista automatiskt: {e}", file=sys.stderr)
+        mids = []
+    if not mids:
+        print(
+            "Inga ligamatcher hittades automatiskt. Ange match-ID:n själv, t.ex.\n"
+            f"  py -m mzanalys motstandare {args.lag} <id1> <id2> <id3>\n"
+            "Match-ID:n hittar du i lagets lista över spelade matcher (talet efter mid= i adressen).",
+            file=sys.stderr,
+        )
+        return 1
+    mids = mids[: args.antal]
+    print(f"Hämtar {len(mids)} matcher (sparade matcher hämtas inte igen)…")
+    matches = []
+    for i, mid in enumerate(mids, 1):
+        try:
+            matches.append(parse_stats(client.match_stats(mid)))
+            print(f"[{i}/{len(mids)}] {mid}: klar")
+        except (FetchError, StatsXmlError) as e:
+            print(f"[{i}/{len(mids)}] {e}", file=sys.stderr)
+    profile = analysis.build_profile(matches, args.lag)
+    profile.matches = profile.matches[: args.antal]
+    text = report.render_scouting(profile)
+    out = args.ut or f"scouting-{args.lag}.md"
+    Path(out).write_text(text, encoding="utf-8")
+    print(f"Scoutingrapport för {profile.name}: {out} ({len(profile.matches)} ligamatcher).")
+    skipped = len(matches) - len(profile.matches)
+    if skipped > 0:
+        print(f"{skipped} matcher var inte ligamatcher för laget och togs inte med.")
+    return 0 if profile.matches else 1
+
+
 def cmd_match(args) -> int:
     source = Path(args.match)
     if source.exists():
@@ -157,6 +224,17 @@ def main(argv: list[str] | None = None) -> int:
                    help="matchtyper att ta med: 1 = liga (standard), 6 = cup, t.ex. 1,6 eller alla")
     a.add_argument("--ut", help="spara rapporten som Markdown")
     a.set_defaults(func=cmd_analysera)
+
+    o = sub.add_parser("motstandare", help="scoutingrapport för nästa motståndare")
+    o.add_argument("lag", type=int, nargs="?", help="motståndarens lag-ID")
+    o.add_argument("matcher", nargs="*", help="deras match-ID:n (annars försöker verktyget hitta dem själv)")
+    o.add_argument("--fil", help="textfil med match-ID:n")
+    o.add_argument("--match", type=int, help="ID för din kommande match; motståndaren tas fram automatiskt")
+    o.add_argument("--mitt-lag", type=int, help="ditt lag-ID (krävs med --match)")
+    o.add_argument("--antal", type=int, default=10, help="antal senaste ligamatcher (standard 10)")
+    o.add_argument("--session", action="store_true", help="använd sajtens lista med din session (MZ_PHPSESSID)")
+    o.add_argument("--ut", help="filnamn för rapporten (standard scouting-<lag-ID>.md)")
+    o.set_defaults(func=cmd_motstandare)
 
     m = sub.add_parser("match", help="visa en enskild match")
     m.add_argument("match", help="match-ID eller sökväg till en sparad matchfil")

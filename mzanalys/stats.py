@@ -52,6 +52,12 @@ class TacticChange:
 
 
 @dataclass
+class Goal:
+    team_id: int  # laget som fick målet tillgodoräknat
+    minute: int | None
+
+
+@dataclass
 class Team:
     id: int
     name: str
@@ -74,6 +80,17 @@ class Match:
     players: list[Player]
     substitutions: list[Substitution]
     tactic_changes: list[TacticChange]
+    goals: list[Goal] = field(default_factory=list)
+
+    def score_at(self, team_id: int, minute: int | None) -> tuple[int, int] | None:
+        """Ställningen (egna, motståndarens) före given minut, sett från team_id."""
+        if minute is None or any(g.minute is None for g in self.goals):
+            return None
+        if any(t.goals is not None for t in self.teams) and len(self.goals) != sum(t.goals or 0 for t in self.teams):
+            return None  # målhändelserna är ofullständiga
+        own = sum(1 for g in self.goals if g.team_id == team_id and g.minute < minute)
+        other = sum(1 for g in self.goals if g.team_id != team_id and g.minute < minute)
+        return own, other
 
     def team(self, team_id: int) -> Team:
         for t in self.teams:
@@ -182,15 +199,19 @@ def parse_stats(text: str) -> Match:
             )
         )
 
-    # Mål från spelarna om lagstatistiken saknar goals (självmål räknas via Goal@team).
+    # Målhändelser. Goal@team anger laget som får målet (självmål), annars spelarens lag.
+    goal_events = [
+        Goal(
+            team_id=_int(g.get("team")) or _int(p.get("teamId")) or 0,
+            minute=_clock_minute(g.get("clock") or g.get("time")),
+        )
+        for p in root.iter("Player")
+        for g in p.findall("Goal")
+    ]
+    goal_events.sort(key=lambda g: (g.minute is None, g.minute or 0))
     for t in teams:
         if t.goals is None:
-            t.goals = sum(
-                1
-                for p in root.iter("Player")
-                for g in p.findall("Goal")
-                if (_int(g.get("team")) or _int(p.get("teamId"))) == t.id
-            )
+            t.goals = sum(1 for g in goal_events if g.team_id == t.id)
 
     subs = [
         Substitution(
@@ -223,4 +244,5 @@ def parse_stats(text: str) -> Match:
         players=players,
         substitutions=subs,
         tactic_changes=changes,
+        goals=goal_events,
     )
