@@ -91,7 +91,8 @@ def cmd_analysera(args) -> int:
                 print(f"{mid}: {e}", file=sys.stderr)
     else:
         matches = _load_cached(cache)
-    profile = analysis.build_profile(matches, args.lag)
+    types = None if args.typer == "alla" else tuple(t.strip() for t in args.typer.split(","))
+    profile = analysis.build_profile(matches, args.lag, types)
     profile.matches = profile.matches[: args.antal]
     text = report.render(profile)
     if args.ut:
@@ -152,6 +153,8 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("matcher", nargs="*", help="match-ID:n (annars används alla i cachen)")
     a.add_argument("--fil", help="textfil med match-ID:n")
     a.add_argument("--antal", type=int, default=20)
+    a.add_argument("--typer", default=analysis.LEAGUE,
+                   help="matchtyper att ta med: 1 = liga (standard), 6 = cup, t.ex. 1,6 eller alla")
     a.add_argument("--ut", help="spara rapporten som Markdown")
     a.set_defaults(func=cmd_analysera)
 

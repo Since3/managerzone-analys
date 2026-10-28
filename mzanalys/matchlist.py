@@ -79,11 +79,11 @@ def league_mids_from_html(html: str) -> list[int]:
     return out
 
 
-def league_mids_from_xml(xml: str, league_types: tuple[str, ...] = ("series",)) -> list[int]:
+def league_mids_from_xml(xml: str, league_types: tuple[str, ...] = ("series", "1")) -> list[int]:
     """Match-ID:n ur team_matchlist.php, filtrerade på Match@type.
 
-    Värdet för ligamatcher antas vara "series" (samma ord som sajtens filter selectType).
-    Det är obekräftat; kör `mzanalys lista --visa-typer` för att se vilka värden som finns.
+    I matchfilen är ligamatcher type="1"; om XML-listan använder samma värde, eller ordet
+    "series" som sajtens filter selectType, är obekräftat; kör `mzanalys lista --visa-typer` för att se vilka värden som finns.
     """
     root = ET.fromstring(xml)
     out = []

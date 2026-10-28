@@ -23,7 +23,7 @@ class ParseStatsTest(unittest.TestCase):
                          (11, True, "wings", "offensive", "normal"))
         self.assertEqual((away.id, away.home, away.goals), (22, False, 1))
         self.assertEqual(home.manager, "mgr11")
-        self.assertEqual(self.m.type, "series")
+        self.assertEqual(self.m.type, "1")
 
     def test_starters_and_bench(self):
         self.assertEqual(len(self.m.starters(11)), 11)

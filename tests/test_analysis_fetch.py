@@ -35,6 +35,11 @@ class AnalysisTest(unittest.TestCase):
         self.assertEqual(self.p.goals, (6, 4))
         self.assertEqual([m.home for m in self.p.matches], [True, True, False, True])
 
+    def test_only_league_matches_by_default(self):
+        cup = parse_stats(make_stats_xml(9, US, (55, "Cup"), (0, 5), match_type="6"))
+        self.assertEqual(len(analysis.build_profile(_season() + [cup], 11).matches), 4)
+        self.assertEqual(len(analysis.build_profile(_season() + [cup], 11, types=None).matches), 5)
+
     def test_most_likely(self):
         likely = self.p.most_likely()
         self.assertEqual(likely["formation"], ("4-2-1-3", 0.75))

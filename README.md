@@ -12,7 +12,7 @@ Verktyget läser matchfilen för spelade matcher (`getMatchFiles.php?type=stats`
 
 Bakgrunden till vilka data som finns och vilka begränsningar som gäller står i [docs/teknisk-kartlaggning.md](docs/teknisk-kartlaggning.md).
 
-> **Status:** Verktyget är testat mot syntetiska matchfiler som följer den dokumenterade strukturen, men **inte mot riktiga svar från ManagerZone**. Kör det första gången mot en enda match och kontrollera resultatet.
+> **Status:** Testat mot riktiga matchfiler från ManagerZone 2026-10-28 (en liga- och en cupmatch, utan inloggning). Analysen räknar som standard bara ligamatcher (`typ=1`). Lägg till `--typer 1,6` för att även ta med cupmatcher, eller `--typer alla` för alla typer.
 
 > **Villkor:** ManagerZones användarvillkor begränsar programvara som kommunicerar med sajten (se rapporten, avsnitt 2.10). Använd bara ditt eget konto. Verktyget gör ett anrop i taget, med minst 3 sekunders paus (standard 5), och sparar varje match så att den bara hämtas en gång. Det anropar aldrig `/?p=match`.
 
@@ -68,6 +68,6 @@ python -m unittest discover -s tests -t .
 
 ## Kända osäkerheter
 
-- `/xml/team_matchlist.php` och dess värde för ligamatcher (`type="series"`) är obekräftade. Kontrollera med `--visa-typer`.
+- `/xml/team_matchlist.php` och vilket värde den använder för ligamatcher är obekräftade. Kontrollera med `--visa-typer`.
 - Det är okänt hur långt bakåt matchfilen går att generera. Hämta därför matcher löpande, så finns de i cachen.
 - Formationen är en heuristik baserad på zongränser från tredjepartskällor. Två mittfältslinjer räknas som separata om djupskillnaden mellan dem är mer än 70 enheter.

@@ -152,9 +152,23 @@ def summarize(match: Match, team_id: int) -> MatchSummary:
     )
 
 
-def build_profile(matches: list[Match], team_id: int) -> TeamProfile:
-    """Profil för laget över matcherna där det deltog, nyaste först."""
-    own = [m for m in matches if any(t.id == team_id for t in m.teams)]
+# Matchtyper i SoccerStatistics@type, verifierade mot riktiga matcher 2026-10-28.
+LEAGUE = "1"
+CUP = "6"
+
+
+def build_profile(
+    matches: list[Match], team_id: int, types: tuple[str, ...] | None = (LEAGUE,)
+) -> TeamProfile:
+    """Profil för laget över matcherna där det deltog, nyaste först.
+
+    Som standard bara ligamatcher. types=None tar med alla matchtyper.
+    """
+    own = [
+        m
+        for m in matches
+        if any(t.id == team_id for t in m.teams) and (types is None or m.type in types)
+    ]
     own.sort(key=lambda m: (m.date or "", m.mid), reverse=True)
     name = own[0].team(team_id).name if own else str(team_id)
     profile = TeamProfile(team_id=team_id, name=name)

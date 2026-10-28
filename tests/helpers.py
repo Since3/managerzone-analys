@@ -42,10 +42,11 @@ def make_stats_xml(
     away_setup=("shortpass", "normal", "normal"),
     date: str = "2026-10-21 14:45:00",
     events: str = "",
+    match_type: str = "1",
 ) -> str:
     (hid, hname), (aid, aname) = home, away
     return f"""<?xml version="1.0" encoding="utf-8"?>
-<SoccerStatistics matchId="{mid}" type="series" date="{date}" final="1">
+<SoccerStatistics matchId="{mid}" type="{match_type}" date="{date}" final="1">
   <Team id="{hid}" name="{hname}" shortname="H" visiting="0" tactic="{home_setup[0]}" playstyle="{home_setup[1]}" aggression="{home_setup[2]}">
     <MetaData manager="mgr{hid}" series_name="div1.1"/>
     <HalfStatistics goals="0"/>

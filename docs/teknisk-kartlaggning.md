@@ -12,7 +12,8 @@ Testet kördes av användaren från en vanlig dator med verktyget `mzanalys`, ut
 - Ur filen lästes datum (2026-10-25 18:00), lag-ID och lagnamn, hemma/borta, resultat 3–0 (**bekräftat av användaren**) samt `tactic`, `playstyle` och `aggression` för **båda** lagen. **Verifierat: motståndarens taktiska inställningar finns i matchfilen.**
 - Startpositionerna gav formationerna 4-3-1-2 och 5-3-1-1. De är ännu inte bekräftade.
 - `check-match` kan även svara `walkover` (cupmatch 1637344955, vunnen på walkover). Då finns ingen matchfil.
-- **Nytt:** `SoccerStatistics@type` är numeriskt, `type="1"` för denna ligamatch, och inte `"series"`. Vilka siffror som motsvarar cup- och vänskapsmatcher är ännu inte känt.
+- **Nytt:** `SoccerStatistics@type` är numeriskt: **`1` = ligamatch** (1628449768) och **`6` = cupmatch** (1637077861). Vänskapsmatcher och andra typer är ännu inte kartlagda.
+- Taktikändringar under matchen är verifierade: i cupmatch 1637077861 visade filen att hemmalaget i 66:e minuten bytte till `playstyle=defensive` och `tactic=shortpass`.
 
 ---
 
