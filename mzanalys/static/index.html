@@ -46,6 +46,8 @@ button:disabled { opacity: .5; cursor: default; }
 .fixtures { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-top: 12px; }
 .fixture { text-align: left; background: var(--bg); color: var(--text); border: 1px solid var(--line); padding: 12px; }
 .fixture.mine { border-color: var(--accent); }
+.note { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); }
+.note.warn { border-color: var(--warn); }
 .stat { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
 .stat .big { font-size: 26px; }
 .fixture:hover, .fixture.active { border-color: var(--accent); background: var(--accent-soft); }
@@ -144,6 +146,7 @@ td.pos { color: var(--good); font-weight: 600; } td.neg { color: var(--bad); fon
     <section class="card">
       <h2 id="repTitle"></h2>
       <div id="repSummary" class="muted"></div>
+      <div id="repNotes"></div>
     </section>
 
     <section class="card">
@@ -220,7 +223,7 @@ const svShort = v => SV_SHORT[v] || sv(v);
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const bold = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
-const svText = s => s.replace(/\b(wings|shortpass|longball|offensive|defensive|aggressive|passive|normal)\b/g,
+const svText = s => s.replace(/\b(wings|shortpass|longball|offensive|defensive|aggressive|passive|normal|tactic|playstyle|aggression)\b/g,
   w => sv(w).toLowerCase());
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -361,6 +364,31 @@ function pitch(shape, color, label) {
   </svg>`;
 }
 
+// Mönster ur matchfilerna: vilken kant laget anfaller på och tidiga taktikbyten.
+function notes(d, isMe) {
+  const out = [];
+  const sides = d.attack_sides || {};
+  const n = Object.values(sides).reduce((a, b) => a + b, 0);
+  if (n) {
+    const [side, count] = Object.entries(sides).sort((a, b) => b[1] - a[1])[0];
+    const who = isMe ? "Du anfaller" : "Anfaller";
+    const mirror = { "vänster": "högerkant", "höger": "vänsterkant" };
+    out.push(`<div class="note">${side === "centralt"
+      ? `${who} oftast <b>centralt eller lika på båda kanterna</b> (${count} av ${n} matcher).`
+      : `${who} oftast via <b>${side}kanten</b> (${count} av ${n} matcher), sett som i taktikeditorn.` +
+        (isMe ? "" : ` Det är <b>din ${mirror[side]}</b> när ni möts.`)}
+      <span class="muted">Fördelning: ${Object.entries(sides).map(([k, v]) => `${k} ${v}`).join(", ")}.</span></div>`);
+  }
+  const e = d.early_changes;
+  if (e && e.matches) {
+    const list = Object.entries(e.changes).map(([k, v]) => `${esc(svText(k))} (${v})`).join(", ");
+    out.push(`<div class="note${e.masking ? " warn" : ""}">${e.masking ? "<b>Möjlig maskeringstaktik:</b> " : ""}
+      ${isMe ? "Du har" : "Har"} bytt taktik inom de första ${e.minute} minuterna i ${e.matches} av ${e.total} matcher: ${list}.
+      ${e.masking ? (isMe ? "" : "Startuppställningen är kanske inte den de faktiskt spelar; utgå hellre från hur de spelar efter bytet.") : ""}</div>`);
+  }
+  return out.join("");
+}
+
 function resultCell(r) { return `<td class="${r}">${r}</td>`; }
 
 function render(d, opponentHome, log, isMe = false) {
@@ -427,9 +455,10 @@ function render(d, opponentHome, log, isMe = false) {
 
   const states = { under: "När de ligger under", lika: "Vid lika ställning", leder: "När de leder", "okänd": "Okänd ställning" };
   const changes = Object.entries(d.changes_by_state).map(([s, c]) =>
-    `<li>${states[s] || s}: ${Object.entries(c).map(([k, n]) => `${esc(k)} (${n})`).join(", ")}</li>`).join("");
+    `<li>${states[s] || s}: ${Object.entries(c).map(([k, n]) => `${esc(svText(k))} (${n})`).join(", ")}</li>`).join("");
   $("inMatch").innerHTML = `<li>Taktikändringar i ${d.matches_with_changes} av ${d.matches_count} matcher.</li>${changes}
     <li>Byten per match: ${d.avg_subs}</li>`;
+  $("repNotes").innerHTML = notes(d, isMe);
 
   $("starters").innerHTML = "<tr><th>Spelare</th><th>Starter</th><th>Roll</th></tr>" + d.starters.map(s =>
     `<tr><td>${esc(s.name)}</td><td>${s.starts}/${d.matches_count}</td><td>${esc(s.role)}</td></tr>`).join("");

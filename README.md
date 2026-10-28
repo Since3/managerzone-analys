@@ -33,6 +33,8 @@ Appen öppnas i webbläsaren på `http://127.0.0.1:8765/` och körs bara på din
    - en **planritning** av förslaget bredvid motståndarens väntade uppställning, och koordinater för taktikeditorn,
    - **tabeller** över hur lagen som mött dem har gått, per formation och upplägg,
    - deras väntade upplägg, troliga startelva, beteende under matchen och alla matcher.
+   - **vilken kant de oftast anfaller på** (sett som i taktikeditorn, och vilken av dina kanter det motsvarar),
+   - **varning för möjlig maskeringstaktik** om de byter taktik inom de första 10 minuterna i minst två matcher och minst 30 % av matcherna.
 
 Hittar appen inga kommande matcher kan du ange motståndarens lag-ID direkt under **Analysera ett lag direkt**.
 

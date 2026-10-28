@@ -147,6 +147,16 @@ def render_scouting(profile: TeamProfile) -> str:
     lines += _starters_table(profile)
     lines += ["", "## 3. Hur de reagerar under matchen", ""]
     lines += _in_match_lines(profile)
+    sides = profile.attack_sides()
+    if sides:
+        side, count = sides.most_common(1)[0]
+        where = "centralt eller lika på båda kanterna" if side == "centralt" else f"via {side}kanten (som i taktikeditorn)"
+        lines.append(f"- Anfaller oftast {where}: {count} av {sum(sides.values())} matcher.")
+    early = profile.early_changes()
+    if early["matches"]:
+        warn = "**Möjlig maskeringstaktik:** " if early["masking"] else ""
+        lines.append(f"- {warn}bytte taktik inom {early['minute']} minuter i {early['matches']} av {early['total']} "
+                     f"matcher: {_counter_line(early['changes'], early['matches'])}.")
 
     lines += [
         "",
