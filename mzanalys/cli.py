@@ -195,6 +195,23 @@ def cmd_liga(args) -> int:
     return 0
 
 
+def cmd_publicera(args) -> int:
+    from . import site
+
+    def progress(text, done, total):
+        print(f"  {text}: {done}/{total}" if total else f"  {text}", flush=True)
+
+    try:
+        snap = site.snapshot(_client(args), args.mitt_lag, progress)
+    except (FetchError, ValueError) as e:
+        print(f"Kunde inte bygga sidan: {e}", file=sys.stderr)
+        return 1
+    path = site.write_site(snap, args.ut)
+    print(f"Mobilsida: {path} ({len(snap['reports'])} lag, {snap['league_matches']} ligamatcher, "
+          f"{len(snap['upcoming'])} kommande matcher).")
+    return 0 if snap["reports"] else 1
+
+
 def cmd_webb(args) -> int:
     from . import web
 
@@ -272,6 +289,11 @@ def main(argv: list[str] | None = None) -> int:
     lg = sub.add_parser("liga", help="bygg eller uppdatera ligadatabasen för din serie")
     lg.add_argument("--mitt-lag", type=int, required=True, help="ditt lag-ID")
     lg.set_defaults(func=cmd_liga)
+
+    pu = sub.add_parser("publicera", help="bygg en fristående mobilsida med rapporter för hela serien")
+    pu.add_argument("--mitt-lag", type=int, required=True, help="ditt lag-ID")
+    pu.add_argument("--ut", default="site", help="katalog för sidan (standard site)")
+    pu.set_defaults(func=cmd_publicera)
 
     w = sub.add_parser("webb", help="starta webbappen i din webbläsare")
     w.add_argument("--port", type=int, default=8765)

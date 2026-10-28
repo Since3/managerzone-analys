@@ -7,9 +7,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="MZ Scouting">
-<link rel="manifest" href="/manifest.json">
-<link rel="icon" href="/icon-192.png">
-<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>MZ Scouting</title>
 <style>
 :root {
@@ -71,6 +71,7 @@ details { margin-top: 8px; } summary { cursor: pointer; font-weight: 600; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 760px) { .grid2, .pitches { grid-template-columns: 1fr; } }
 .hidden { display: none; }
+.grid2 > *, .hero > *, .pitches > * { min-width: 0; }
 tr.highlight td { background: var(--accent-soft); font-weight: 600; }
 td.pos { color: var(--good); font-weight: 600; } td.neg { color: var(--bad); font-weight: 600; }
 </style>
@@ -81,7 +82,16 @@ td.pos { color: var(--good); font-weight: 600; } td.neg { color: var(--bad); fon
   <p>Analys av din nästa ligamotståndare utifrån deras senaste ligamatcher.</p>
 </header>
 <main>
-  <section class="card">
+  <section class="card hidden" id="snapshotSection">
+    <h2 id="snapTitle">Din serie</h2>
+    <p class="muted" id="snapInfo"></p>
+    <div id="snapUpcomingWrap"><h3>Kommande ligamatcher</h3><div id="snapUpcoming" class="fixtures"></div></div>
+    <h3>Alla lag i serien</h3>
+    <p class="muted">Sorterade efter styrka. Klicka på ett lag för att se rapport och förslag.</p>
+    <div id="snapTeams" class="fixtures"></div>
+  </section>
+
+  <section class="card" id="liveSection">
     <h2>Mitt lag</h2>
     <div class="row">
       <label for="myTeam">Lag-ID</label>
@@ -101,7 +111,7 @@ td.pos { color: var(--good); font-weight: 600; } td.neg { color: var(--bad); fon
     </details>
   </section>
 
-  <section class="card">
+  <section class="card" id="leagueSection">
     <h2>Ligadatabas</h2>
     <p class="muted">Hämtar alla ligamatcher i din serie den här säsongen. Förslagen bygger då även på matcher mot
       andra lag som spelar samma formation som motståndaren, och tar hänsyn till lagens styrka.
@@ -183,7 +193,9 @@ td.pos { color: var(--good); font-weight: 600; } td.neg { color: var(--bad); fon
   </div>
 </main>
 
+<script id="snapshot" type="application/json">null</script>
 <script>
+const SNAPSHOT = JSON.parse(document.getElementById("snapshot").textContent || "null");
 const SV = {
   wings: "Kantspel", shortpass: "Kortpassningsspel", longball: "Långbollar",
   offensive: "Offensiv", normal: "Normal", defensive: "Defensiv",
@@ -223,7 +235,7 @@ async function leagueInfo() {
       : "Ingen ligadatabas ännu.";
   } catch (e) { $("leagueStatus").textContent = e.message; }
 }
-leagueInfo();
+if (!SNAPSHOT) leagueInfo();
 $("myTeam").addEventListener("change", () => { store.set("myTeam", $("myTeam").value.trim()); leagueInfo(); });
 
 function runJob(job, title, onDone) {
@@ -406,6 +418,43 @@ function render(d, opponentHome, log) {
       <td>${esc(m.opponent_formation || "?")}</td><td>${esc(m.opponent_setup)}</td></tr>`).join("");
   $("report").scrollIntoView({ behavior: "smooth" });
 }
+
+// Färdig ögonblicksbild (GitHub-publicering): ingen server, all data finns i sidan.
+function initSnapshot(snap) {
+  ["liveSection", "leagueSection"].forEach(id => $(id).classList.add("hidden"));
+  $("snapshotSection").classList.remove("hidden");
+  $("snapTitle").textContent = `${snap.my_team_name || "Din serie"}${snap.series ? ` · ${snap.series}` : ""}`;
+  const when = new Date(snap.generated);
+  $("snapInfo").textContent = `Uppdaterad ${when.toLocaleString("sv-SE", { dateStyle: "medium", timeStyle: "short" })}. ` +
+    `${snap.league_matches} ligamatcher, ${snap.teams.length + 1} lag.`;
+  const open = (btn, report, opponentHome) => {
+    document.querySelectorAll(".fixture").forEach(x => x.classList.remove("active"));
+    btn.classList.add("active");
+    render(report, opponentHome, []);
+  };
+  const card = (html, onclick) => {
+    const b = document.createElement("button");
+    b.className = "fixture";
+    b.innerHTML = html;
+    b.onclick = () => onclick(b);
+    return b;
+  };
+  $("snapUpcomingWrap").classList.toggle("hidden", !snap.upcoming.length);
+  snap.upcoming.forEach((m, i) => {
+    const report = snap.reports[m.opponent_id];
+    if (!report) return;
+    $("snapUpcoming").appendChild(card(
+      `<span class="muted">${i === 0 ? "<strong>Nästa match</strong> · " : ""}${esc((m.date || "").slice(0, 16))} · ${m.home ? "Hemma" : "Borta"}</span>
+       <b>${esc(m.opponent)}</b>`,
+      b => open(b, m.home ? report.as_away : report.as_home, !m.home)));
+  });
+  snap.teams.filter(t => snap.reports[t.team_id]).forEach((t, i) => {
+    $("snapTeams").appendChild(card(
+      `<span class="muted">${i + 1}. styrka ${signed(t.strength)}</span><b>${esc(t.name)}</b>`,
+      b => open(b, snap.reports[t.team_id].total, null)));
+  });
+}
+if (SNAPSHOT) initSnapshot(SNAPSHOT);
 </script>
 </body>
 </html>

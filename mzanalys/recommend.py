@@ -176,13 +176,17 @@ def _signed(x: float) -> str:
     return f"{x:+.1f}".replace("-", "−")
 
 
+def _n(count: int) -> str:
+    return f"{count} {'match' if count == 1 else 'matcher'}"
+
+
 def _describe(o: Option, name: str) -> str:
     if o.direct == o.matches:
-        where = f"{o.matches} matcher mot {name}"
+        where = f"{_n(o.matches)} mot {name}"
     elif o.direct:
-        where = f"{o.matches} matcher, varav {o.direct} mot {name}"
+        where = f"{_n(o.matches)}, varav {o.direct} mot {name}"
     else:
-        where = f"{o.matches} matcher mot lag med samma formation"
+        where = f"{_n(o.matches)} mot lag med samma formation"
     return f"{_signed(o.resid)} mål/match mot väntat ({where}; {o.wins}V {o.draws}O {o.losses}F)"
 
 

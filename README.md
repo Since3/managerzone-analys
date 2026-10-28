@@ -50,6 +50,16 @@ Med ligadatabasen blir förslagen mer tillförlitliga på två sätt:
 
 **Hur förslaget räknas fram:** Matcherna grupperas efter vad laget som mötte motståndaren använde (antal backar, formation, taktik, spelstil, aggressivitet). Varje grupp får ett värde: målskillnad per match jämfört med det väntade (utan ligadatabas är det väntade 0). Små grupper dras mot noll (tre fiktiva matcher), och ett alternativ måste ha minst vikt 4 bakom sig för att föreslås: två matcher mot motståndaren, eller fyra mot lag med samma formation. Förslaget bygger på historiska resultat, inte på spelmotorn. Spelarkvalitet och motståndarnas styrka påverkar också utfallet.
 
+## Mobilsida som uppdateras automatiskt (GitHub)
+
+Arbetsflödet `.github/workflows/scouting.yml` körs på GitHubs servrar, så din dator behöver inte vara igång:
+
+- **När:** onsdag och söndag kväll efter ligaomgången, och morgonen därpå. Kan också startas för hand under **Actions → MZ Scouting → Run workflow**.
+- **Vad:** bygger/uppdaterar ligadatabasen (sparade matcher återanvänds mellan körningarna) och skapar en mobilsida med rapport och förslag för **alla lag i serien**. Kommande motståndare visas överst om listan över kommande matcher går att läsa.
+- **Var:** sidan publiceras med GitHub Pages. Lägg den på mobilens hemskärm för en app-ikon.
+
+Lokalt kan samma sida byggas med `python -m mzanalys publicera --mitt-lag <lag-ID> --ut site` och öppnas som fil (`site/index.html`).
+
 ## Scouting av nästa motståndare (kommandorad)
 
 Det här är huvudfunktionen. Ange ID för din kommande ligamatch och ditt eget lag-ID (på Windows skriver du `py` i stället för `python`):
