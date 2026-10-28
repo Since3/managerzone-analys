@@ -19,7 +19,7 @@ class ScheduleClient(FakeLeagueClient):
             return super().team_matchlist_xml(team, limit, played)
         if self.played_next:
             return "<ManagerZone_MatchList/>"
-        return ('<ManagerZone_MatchList><Match id="%d" type="league" date="2026-11-01 18:00:00">'
+        return ('<ManagerZone_MatchList><Match id="%d" type="league" date="2099-11-01 18:00:00">'
                 '<Team teamId="%d" teamName="Vi"/><Team teamId="%d" teamName="Täfte"/></Match>'
                 '</ManagerZone_MatchList>' % (NEXT, ME, TAFTE))
 
@@ -60,6 +60,30 @@ class TrackingTest(unittest.TestCase):
             # Tredje körningen ändrar ingenting.
             site.snapshot(client, ME, log_path=log)
             self.assertEqual(tracking.load(log), [entry])
+
+    def test_no_prediction_after_kickoff(self):
+        entries = []
+        reports = {"5": {"as_home": {"recommendation": {"confidence": "låg", "choices": [
+            {"best": {"value": v}} for v in ("4 backar", "4-4-2", "wings", "normal", "normal")]}}}}
+        upcoming = [{"mid": 1, "date": "2026-10-28 15:15", "home": False, "opponent_id": 5, "opponent": "X"}]
+        # 15:46 UTC är efter avspark 15:15 svensk tid (14:15 UTC): inget sparas.
+        tracking.record_predictions(entries, upcoming, reports, "2026-10-28T15:46:00+00:00")
+        self.assertEqual(entries, [])
+        # 12:00 UTC är före avspark: förslaget sparas.
+        tracking.record_predictions(entries, upcoming, reports, "2026-10-28T12:00:00+00:00")
+        self.assertEqual(entries[0]["prediction"]["formation"], "4-4-2")
+
+    def test_late_entries_are_dropped(self):
+        late = {"mid": 1, "date": "2026-10-28 15:15", "created": "2026-10-28T15:46:00+00:00", "prediction": {}}
+        early = {"mid": 2, "date": "2026-10-28 15:15", "created": "2026-10-27T10:00:00+00:00", "prediction": {}}
+        entries = [late, early]
+        tracking.evaluate(entries, [], 13659)
+        self.assertEqual([e["mid"] for e in entries], [2])
+
+    def test_kickoff_parsing(self):
+        ko = tracking.kickoff("2026-10-28 15:15")
+        self.assertEqual(ko.utcoffset().total_seconds(), 3600)  # vintertid i Sverige
+        self.assertIsNone(tracking.kickoff("okänt"))
 
     def test_summary_groups(self):
         def e(mid, followed, result, gd, expected):
