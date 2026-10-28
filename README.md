@@ -50,6 +50,8 @@ Med ligadatabasen blir förslagen mer tillförlitliga på två sätt:
 
 **Hur förslaget räknas fram:** Matcherna grupperas efter vad laget som mötte motståndaren använde (antal backar, formation, taktik, spelstil, aggressivitet). Varje grupp får ett värde: målskillnad per match jämfört med det väntade (utan ligadatabas är det väntade 0). Små grupper dras mot noll (tre fiktiva matcher), och ett alternativ måste ha minst vikt 4 bakom sig för att föreslås: två matcher mot motståndaren, eller fyra mot lag med samma formation. Förslaget bygger på historiska resultat, inte på spelmotorn. Spelarkvalitet och motståndarnas styrka påverkar också utfallet.
 
+**Ditt eget lags historik:** när ligadatabasen finns räknas även dina egna ligamatcher in. Varje alternativ får ett tillägg på halva ditt lags värde med samma val (målskillnad mot väntat, krympt mot noll); alternativ du aldrig använt räknas neutralt. Det kan avgöra mellan alternativ som ligger nära varandra mot motståndaren, men det som fungerat mot motståndaren väger tyngst. Tabellerna har en kolumn **Ditt lag**, och motiveringen säger när ditt lags resultat fällt avgörandet.
+
 ## Mobilsida som uppdateras automatiskt (GitHub)
 
 Arbetsflödet `.github/workflows/scouting.yml` körs på GitHubs servrar, så din dator behöver inte vara igång:

@@ -203,6 +203,8 @@ const SV = {
   tactic: "taktik", playstyle: "spelstil", aggression: "aggressivitet",
 };
 const sv = v => SV[v] || v;
+const SV_SHORT = { shortpass: "Kortpass", longball: "Långboll" };
+const svShort = v => SV_SHORT[v] || sv(v);
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const bold = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
@@ -382,12 +384,17 @@ function render(d, opponentHome, log) {
       (matcher mot ${esc(d.name)} väger dubbelt). <b>+/− mot väntat</b> är målskillnaden per match jämfört med vad lagens styrka
       och hemmaplan gav anledning att vänta.`
       : `. Bygg ligadatabasen för ett större underlag och hänsyn till lagens styrka. <b>+/− mot väntat</b> är här
-      målskillnaden per match.`) + " V betyder att laget som mötte dem vann.";
+      målskillnaden per match.`) + " V betyder att laget som mötte dem vann." +
+    " <b>Matcher</b> anger antal matcher, och inom parentes hur många av dem som var mot motståndaren." +
+    (rec.own_matches ? ` Kolumnen <b>Ditt lag</b> visar hur ${esc(rec.own_name || "ditt lag")} har gått med samma val
+      (+/− mot väntat och antal matcher) i ${rec.own_matches} ligamatcher; det väger in med halv vikt i förslaget.` : "");
   $("choiceTables").innerHTML = rec.choices.map(c => `
     <div><h3>${esc(c.label)}</h3><div class="table-wrap"><table>
-      <tr><th></th><th>Matcher</th><th>Mot dem</th><th>V</th><th>O</th><th>F</th><th>+/− mot väntat</th></tr>
-      ${c.options.map(o => `<tr><td>${esc(sv(o.value))}</td><td>${o.matches}</td><td>${o.direct}</td><td>${o.wins}</td>
-        <td>${o.draws}</td><td>${o.losses}</td><td class="${o.resid > 0 ? "pos" : o.resid < 0 ? "neg" : ""}">${signed(o.resid)}</td></tr>`).join("")}
+      <tr><th></th><th title="antal matcher (varav mot dem)">Matcher</th><th>V-O-F</th><th title="målskillnad per match mot väntat">+/−</th>${rec.own_matches ? "<th>Ditt lag</th>" : ""}</tr>
+      ${c.options.map(o => { const mine = (c.own || {})[o.value]; const cls = x => x > 0 ? "pos" : x < 0 ? "neg" : "";
+        return `<tr><td>${esc(svShort(o.value))}</td><td>${o.matches}${o.direct && o.direct < o.matches ? ` (${o.direct})` : ""}</td>
+        <td>${o.wins}-${o.draws}-${o.losses}</td><td class="${cls(o.resid)}">${signed(o.resid)}</td>
+        ${rec.own_matches ? `<td class="${mine ? cls(mine.resid) : ""}">${mine ? `${signed(mine.resid)} (${mine.matches})` : "–"}</td>` : ""}</tr>`; }).join("")}
     </table></div></div>`).join("");
   $("strengthCard").classList.toggle("hidden", !d.strengths);
   $("strengths").innerHTML = d.strengths ? "<tr><th>#</th><th>Lag</th><th>Styrka</th><th>Matcher</th></tr>" +

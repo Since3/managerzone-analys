@@ -9,6 +9,10 @@ lagens styrka och hemmafördel (se league.ratings). Utan ligadatabas är det vä
 Grupper med lite underlag dras mot 0 (PRIOR_WEIGHT fiktiva matcher), och ett alternativ
 måste ha minst MIN_WEIGHT i vikt för att föreslås.
 
+Ditt eget lags historik (valfri) väger in med OWN_WEIGHT: ett alternativ får tillägget
+OWN_WEIGHT × (ditt lags krympta värde med det alternativet). Alternativ du aldrig använt
+räknas neutralt (0). Det som fungerat mot motståndaren väger alltså tyngst.
+
 Förslaget bygger på historiska resultat, inte på spelmotorn. Spelarnas kvalitet påverkar
 också utfallet.
 """
@@ -23,6 +27,7 @@ from .analysis import MatchSummary, TeamProfile
 DIRECT_WEIGHT = 2.0
 PRIOR_WEIGHT = 3.0
 MIN_WEIGHT = 4.0  # t.ex. två direkta matcher eller fyra liknande
+OWN_WEIGHT = 0.5
 
 DIMENSIONS = (
     ("backs", "Antal backar"),
@@ -55,6 +60,7 @@ class Option:
     resid: float  # målskillnad jämfört med väntat, viktat medel
     score: float  # krympt resid
     weight: float
+    combined: float = 0.0  # score plus tillägg för ditt lags historik
 
 
 @dataclass
@@ -62,6 +68,7 @@ class Choice:
     label: str
     best: Option | None
     options: list[Option]
+    own: dict[str, Option] = field(default_factory=dict)  # ditt lags historik per alternativ
 
     def runner_up(self) -> Option | None:
         others = [o for o in self.options if self.best and o.value != self.best.value]
@@ -79,6 +86,7 @@ class Recommendation:
     direct_matches: int
     similar_matches: int
     uses_league: bool
+    own_matches: int = 0
     reasons: list[str] = field(default_factory=list)
     avoid: list[str] = field(default_factory=list)
     shape: list[tuple[float, float]] | None = None
@@ -144,6 +152,18 @@ def similar_evidence(league_matches, opponent_id: int, opponent_formation: str |
     return rows, shapes
 
 
+def own_evidence(own: TeamProfile | None, ratings=None) -> list[Evidence]:
+    """Ditt lags matcher, sett från ditt lag."""
+    rows = []
+    for m in own.matches if own else []:
+        if m.goals_for is None or m.goals_against is None:
+            continue
+        exp = ratings.expected_gd(own.team_id, m.opponent_id, home=m.home) if ratings else 0.0
+        rows.append(Evidence(values=_values(m), result=m.result, gd=m.goals_for - m.goals_against,
+                             expected=exp, weight=1.0, direct=False))
+    return rows
+
+
 def _options(rows: list[Evidence], dim: str) -> list[Option]:
     groups: dict[str, list[Evidence]] = {}
     for r in rows:
@@ -160,16 +180,20 @@ def _options(rows: list[Evidence], dim: str) -> list[Option]:
             losses=sum(1 for r in rs if r.result == "F"),
             ppm=sum(POINTS.get(r.result, 0) for r in rs) / len(rs),
             resid=weighted / w, score=weighted / (w + PRIOR_WEIGHT), weight=w,
+            combined=weighted / (w + PRIOR_WEIGHT),
         ))
     out.sort(key=lambda o: (-o.score, -o.weight))
     return out
 
 
-def _choice(label: str, rows: list[Evidence], dim: str) -> Choice:
+def _choice(label: str, rows: list[Evidence], dim: str, own_rows: list[Evidence] = ()) -> Choice:
     options = _options(rows, dim)
+    own = {o.value: o for o in _options(list(own_rows), dim)}
+    for o in options:
+        o.combined = o.score + (OWN_WEIGHT * own[o.value].score if o.value in own else 0.0)
     solid = [o for o in options if o.weight >= MIN_WEIGHT]
-    pool = solid or options
-    return Choice(label, pool[0] if pool else None, options)
+    pool = sorted(solid or options, key=lambda o: (-o.combined, -o.weight))
+    return Choice(label, pool[0] if pool else None, options, own)
 
 
 def _signed(x: float) -> str:
@@ -201,11 +225,12 @@ def _confidence(best: Option | None) -> str:
 
 
 def recommend(profile: TeamProfile, opponent_home: bool | None = None,
-              league_matches=None, ratings=None) -> Recommendation | None:
+              league_matches=None, ratings=None, own: TeamProfile | None = None) -> Recommendation | None:
     """Förslag mot laget i profilen.
 
     opponent_home: True om motståndaren spelar hemma i den kommande matchen.
     league_matches/ratings: ligadatabasen (league.load_matches / league.ratings), valfri.
+    own: ditt lags profil (analysis.build_profile för ditt lag), valfri.
     """
     if not profile.matches:
         return None
@@ -217,22 +242,25 @@ def recommend(profile: TeamProfile, opponent_home: bool | None = None,
     rows += sim_rows
     shapes += sim_shapes
 
-    backs = _choice("Antal backar", rows, "backs")
+    own_rows = own_evidence(own, ratings) if own and own.team_id != profile.team_id else []
+    backs = _choice("Antal backar", rows, "backs", own_rows)
     within = [r for r in rows if backs.best and r.values["backs"] == backs.best.value] or rows
-    form = _choice("Formation", within, "formation")
-    form.options = _options(rows, "formation")
+    form = _choice("Formation", within, "formation", own_rows)
+    all_forms = _choice("Formation", rows, "formation", own_rows)
+    form.options, form.own = all_forms.options, all_forms.own
     if form.best:
         form.best = next(o for o in form.options if o.value == form.best.value)
 
     rec = Recommendation(
         backs=backs, formation=form,
-        tactic=_choice("Taktik", rows, "tactic"),
-        playstyle=_choice("Spelstil", rows, "playstyle"),
-        aggression=_choice("Aggressivitet", rows, "aggression"),
+        tactic=_choice("Taktik", rows, "tactic", own_rows),
+        playstyle=_choice("Spelstil", rows, "playstyle", own_rows),
+        aggression=_choice("Aggressivitet", rows, "aggression", own_rows),
         confidence=_confidence(backs.best),
         direct_matches=sum(1 for r in rows if r.direct),
         similar_matches=len(sim_rows),
         uses_league=ratings is not None,
+        own_matches=len(own_rows),
     )
 
     for choice in rec.choices:
@@ -244,6 +272,12 @@ def recommend(profile: TeamProfile, opponent_home: bool | None = None,
             line += f". Jämfört med {other.value}: {_describe(other, profile.name)}"
             if other.weight < MIN_WEIGHT:
                 line += " – för lite underlag för att väga tungt"
+        mine = choice.own.get(best.value)
+        if mine:
+            line += f". Ditt lag med {best.value}: {_signed(mine.resid)} mål/match mot väntat ({_n(mine.matches)})"
+        top = max((o for o in choice.options if o.weight >= MIN_WEIGHT), key=lambda o: o.score, default=None)
+        if top and top.value != best.value:
+            line += f". Valt framför {top.value} tack vare ditt lags resultat"
         rec.reasons.append(line + ".")
         worst = choice.options[-1] if len(choice.options) > 1 else None
         if worst and worst.weight >= MIN_WEIGHT and worst.score < -0.25:
