@@ -30,20 +30,20 @@ def snapshot(client: Client, my_team: int, progress=lambda text, done, total: No
     own = analysis.build_profile(matches, my_team)
     reports: dict[str, dict] = {}
     for tid in index.teams:
-        if tid == my_team:
-            continue
-        profile = analysis.build_profile(matches, tid)
+        profile = own if tid == my_team else analysis.build_profile(matches, tid)
         if not profile.matches:
             continue
-        report = {"total": scouting_json(profile, None, matches, ratings, index.teams, own)}
+        # Ditt eget lag: hur andra har spelat mot dig (ingen egen historik att väga in).
+        report = {"total": scouting_json(profile, None, matches, ratings, index.teams,
+                                         None if tid == my_team else own)}
         if any(m["opponent_id"] == tid for m in upcoming):
             report["as_home"] = scouting_json(profile, True, matches, ratings, index.teams, own)
             report["as_away"] = scouting_json(profile, False, matches, ratings, index.teams, own)
         reports[str(tid)] = report
 
     teams = sorted(
-        ({"team_id": t, "name": index.teams.get(t, str(t)), "strength": round(s, 2)}
-         for t, s in ratings.strength.items() if t != my_team),
+        ({"team_id": t, "name": index.teams.get(t, str(t)), "strength": round(s, 2), "is_me": t == my_team}
+         for t, s in ratings.strength.items()),
         key=lambda x: -x["strength"],
     )
     return {
