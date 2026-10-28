@@ -32,6 +32,7 @@ class Formation:
     zones: str  # försvar-mittfält-anfall, t.ex. "4-3-3"
     lines: str  # med mittfältet uppdelat i linjer, t.ex. "4-2-1-3"
     positions: list[tuple[float, float]]  # (bredd, djup) per utespelare, normaliserat
+    ordered: list[tuple[float, float]] = ()  # sorterade linje för linje, inom linjen efter bredd
 
     def __str__(self) -> str:
         return self.lines
@@ -87,11 +88,38 @@ def derive(starters: list[Player]) -> Formation | None:
     positions = normalize(starters)
     if positions is None or len(positions) != 10:
         return None
-    defence = [d for _, d in positions if d <= DEFENCE_MAX_DEPTH]
-    attack = [d for _, d in positions if d >= ATTACK_MIN_DEPTH]
-    midfield = [d for _, d in positions if DEFENCE_MAX_DEPTH < d < ATTACK_MIN_DEPTH]
+    defence = [p for p in positions if p[1] <= DEFENCE_MAX_DEPTH]
+    attack = [p for p in positions if p[1] >= ATTACK_MIN_DEPTH]
+    midfield = sorted((p for p in positions if DEFENCE_MAX_DEPTH < p[1] < ATTACK_MIN_DEPTH),
+                      key=lambda p: p[1])
 
     zones = "-".join(str(n) for n in (len(defence), len(midfield), len(attack)))
-    parts = [len(defence)] + _split_lines(midfield, MIDFIELD_LINE_GAP) + [len(attack)]
+    mid_sizes = _split_lines([d for _, d in midfield], MIDFIELD_LINE_GAP)
+    parts = [len(defence)] + mid_sizes + [len(attack)]
     lines = "-".join(str(n) for n in parts if n)
-    return Formation(zones=zones, lines=lines, positions=positions)
+
+    groups = [defence]
+    i = 0
+    for size in mid_sizes:
+        groups.append(midfield[i:i + size])
+        i += size
+    groups.append(attack)
+    ordered = [p for g in groups for p in sorted(g)]
+    return Formation(zones=zones, lines=lines, positions=positions, ordered=ordered)
+
+
+def average_shape(formations: list[Formation]) -> list[tuple[float, float]] | None:
+    """Genomsnittliga positioner för formationer med samma linjeuppdelning."""
+    fs = [f for f in formations if f and f.ordered]
+    if not fs or len({f.lines for f in fs}) != 1:
+        return None
+    n = len(fs)
+    return [
+        (sum(f.ordered[i][0] for f in fs) / n, sum(f.ordered[i][1] for f in fs) / n)
+        for i in range(len(fs[0].ordered))
+    ]
+
+
+def to_editor(width: float, depth: float) -> tuple[int, int]:
+    """Normaliserad position till taktikeditorns koordinater (x, y)."""
+    return round(0.2555 * width + 8.4), round(max(63.0, 318 - 0.31 * depth))

@@ -20,7 +20,25 @@ Bakgrunden till vilka data som finns och vilka begränsningar som gäller står 
 
 Python 3.10 eller senare. Inga andra beroenden.
 
-## Scouting av nästa motståndare
+## Webbappen
+
+**Windows:** dubbelklicka på `starta-appen.bat` i mappen. **Övriga:** kör `python -m mzanalys webb`.
+
+Appen öppnas i webbläsaren på `http://127.0.0.1:8765/` och körs bara på din egen dator. Låt det svarta fönstret vara öppet medan du använder appen; stänger du det avslutas appen.
+
+1. Skriv ditt lag-ID och klicka **Visa kommande ligamatcher**.
+2. Klicka på en match. Appen hämtar motståndarens senaste 10 ligamatcher (1–2 minuter första gången, sedan går det snabbt).
+3. Du får:
+   - ett **förslag** på antal backar, formation, taktik, spelstil och aggressivitet, med motivering och säkerhetsnivå,
+   - en **planritning** av förslaget bredvid motståndarens väntade uppställning, och koordinater för taktikeditorn,
+   - **tabeller** över hur lagen som mött dem har gått, per formation och upplägg,
+   - deras väntade upplägg, troliga startelva, beteende under matchen och alla matcher.
+
+Hittar appen inga kommande matcher kan du ange motståndarens lag-ID direkt under **Analysera ett lag direkt**.
+
+**Hur förslaget räknas fram:** Motståndarens matcher grupperas efter vad laget som mötte dem använde, och varje grupp får poäng per match. Små grupper dras mot genomsnittet (två fiktiva genomsnittsmatcher), och ett alternativ måste ha minst två matcher bakom sig för att föreslås. Förslaget bygger på historiska resultat, inte på spelmotorn. Spelarkvalitet och motståndarnas styrka påverkar också utfallet.
+
+## Scouting av nästa motståndare (kommandorad)
 
 Det här är huvudfunktionen. Ange ID för din kommande ligamatch och ditt eget lag-ID (på Windows skriver du `py` i stället för `python`):
 

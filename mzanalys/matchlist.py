@@ -97,6 +97,39 @@ def league_mids_from_xml(xml: str, league_types: tuple[str, ...] = ("league",)) 
     return list(dict.fromkeys(mid for _, mid in found))
 
 
+def upcoming_from_xml(xml: str, my_team: int, league_types: tuple[str, ...] = ("league",)) -> list[dict]:
+    """Kommande ligamatcher för my_team ur team_matchlist.php (match_status=2), tidigast först.
+
+    Lagens attributnamn är inte verifierade; både id/teamId och name/teamName accepteras.
+    Första Team-elementet antas vara hemmalaget om attributet field saknas.
+    """
+    root = ET.fromstring(xml)
+    out = []
+    for m in root.iter("Match"):
+        if m.get("type") not in league_types:
+            continue
+        teams = []
+        for i, t in enumerate(m.findall("Team")):
+            tid = t.get("teamId") or t.get("id")
+            if not (tid and tid.isdigit()):
+                continue
+            home = t.get("field") == "home" if t.get("field") else i == 0
+            teams.append((int(tid), t.get("teamName") or t.get("name") or tid, home))
+        mine = [t for t in teams if t[0] == my_team]
+        others = [t for t in teams if t[0] != my_team]
+        mid = m.get("id") or m.get("mid")
+        if len(mine) == 1 and len(others) == 1 and mid and mid.isdigit():
+            out.append({
+                "mid": int(mid),
+                "date": m.get("date"),
+                "home": mine[0][2],
+                "opponent_id": others[0][0],
+                "opponent": others[0][1],
+            })
+    out.sort(key=lambda x: (x["date"] or "", x["mid"]))
+    return out
+
+
 def teams_from_match_info(xml: str) -> list[tuple[int, str]]:
     """Lagen (id, namn) i match_info.php, hemmalaget först.
 

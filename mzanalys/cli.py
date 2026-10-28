@@ -170,6 +170,13 @@ def cmd_motstandare(args) -> int:
     return 0 if profile.matches else 1
 
 
+def cmd_webb(args) -> int:
+    from . import web
+
+    web.serve(_client(args), port=args.port, antal=args.antal, open_browser=not args.ingen_webblasare)
+    return 0
+
+
 def cmd_match(args) -> int:
     source = Path(args.match)
     if source.exists():
@@ -235,6 +242,12 @@ def main(argv: list[str] | None = None) -> int:
     o.add_argument("--session", action="store_true", help="använd sajtens lista med din session (MZ_PHPSESSID)")
     o.add_argument("--ut", help="filnamn för rapporten (standard scouting-<lag-ID>.md)")
     o.set_defaults(func=cmd_motstandare)
+
+    w = sub.add_parser("webb", help="starta webbappen i din webbläsare")
+    w.add_argument("--port", type=int, default=8765)
+    w.add_argument("--antal", type=int, default=10, help="antal senaste ligamatcher per motståndare")
+    w.add_argument("--ingen-webblasare", action="store_true", help="öppna inte webbläsaren automatiskt")
+    w.set_defaults(func=cmd_webb)
 
     m = sub.add_parser("match", help="visa en enskild match")
     m.add_argument("match", help="match-ID eller sökväg till en sparad matchfil")

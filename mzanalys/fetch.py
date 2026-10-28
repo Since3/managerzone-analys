@@ -121,10 +121,14 @@ class Client:
 
     # --- Matchlistor ---------------------------------------------------------
 
-    def team_matchlist_xml(self, team_id: int, limit: int = 50) -> str:
-        """Gamla XML-gränssnittet. Obekräftat om det fortfarande fungerar."""
+    def team_matchlist_xml(self, team_id: int, limit: int = 50, played: bool = True) -> str:
+        """XML-gränssnittets matchlista (fungerar utan inloggning, verifierat 2026-10-28).
+
+        played=False ger kommande matcher (match_status=2, ännu inte verifierat).
+        """
+        status = 1 if played else 2
         return self._request(
-            f"/xml/team_matchlist.php?sport_id=1&team_id={team_id}&match_status=1&limit={limit}"
+            f"/xml/team_matchlist.php?sport_id=1&team_id={team_id}&match_status={status}&limit={limit}"
         )
 
     def league_matchlist_html(self, team_id: int) -> str:

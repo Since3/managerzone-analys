@@ -57,6 +57,18 @@ class MatchSummary:
     subs: int
     sub_minutes: list[int]
     starters: list[Starter] = field(default_factory=list)
+    shape: formation.Formation | None = None
+    opponent_shape: formation.Formation | None = None
+    opponent_tactic: str | None = None
+    opponent_playstyle: str | None = None
+    opponent_aggression: str | None = None
+
+    @property
+    def opponent_backs(self) -> str | None:
+        """Antal backar hos laget som mötte dem, t.ex. '4 backar'."""
+        if not self.opponent_shape:
+            return None
+        return f"{self.opponent_shape.zones.split('-')[0]} backar"
 
     @property
     def result(self) -> str:
@@ -254,6 +266,11 @@ def summarize(match: Match, team_id: int) -> MatchSummary:
         subs=len(subs),
         sub_minutes=[s.minute for s in subs if s.minute is not None],
         starters=starter_rows,
+        shape=own_f,
+        opponent_shape=opp_f,
+        opponent_tactic=opp.tactic,
+        opponent_playstyle=opp.playstyle,
+        opponent_aggression=opp.aggression,
     )
 
 
