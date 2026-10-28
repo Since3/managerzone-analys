@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+data/
+matcher.txt
+rapport.md
+site/

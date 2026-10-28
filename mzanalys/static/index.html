@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6feb">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MZ Scouting">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>MZ Scouting</title>
+<style>
+:root {
+  --bg: #f4f6f8; --card: #ffffff; --text: #17202a; --muted: #5d6d7e; --line: #dde3e8;
+  --accent: #1f6feb; --accent-soft: #e7f0ff; --good: #1a7f37; --bad: #c62828; --warn: #9a6700;
+  --pitch: #2f8f46; --pitch-line: rgba(255,255,255,.75); --me: #1f6feb; --them: #d1242f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1419; --card: #182028; --text: #e6edf3; --muted: #93a1af; --line: #2b3640;
+    --accent: #58a6ff; --accent-soft: #15283f; --good: #3fb950; --bad: #f85149; --warn: #d29922;
+    --pitch: #23683a; --me: #58a6ff; --them: #ff7b72;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { padding: 18px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+header h1 { margin: 0; font-size: 20px; }
+header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+h2 { font-size: 17px; margin: 0 0 12px; }
+h3 { font-size: 15px; margin: 18px 0 8px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); color: var(--text); width: 140px; }
+button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent);
+  background: var(--accent); color: #fff; cursor: pointer; }
+button.secondary { background: transparent; color: var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+.muted { color: var(--muted); font-size: 13px; }
+.error { color: var(--bad); }
+.fixtures { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-top: 12px; }
+.fixture { text-align: left; background: var(--bg); color: var(--text); border: 1px solid var(--line); padding: 12px; }
+.fixture:hover, .fixture.active { border-color: var(--accent); background: var(--accent-soft); }
+.fixture b { display: block; font-size: 15px; }
+.progress { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin: 8px 0; }
+.progress div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+.hero { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 760px) { .hero { grid-template-columns: 1fr; } }
+.big { font-size: 34px; font-weight: 700; margin: 4px 0; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+.chip::first-letter { text-transform: uppercase; }
+.chip { display: inline-block; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 13px; }
+.badge { padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.badge.hög { background: var(--good); color: #fff; } .badge.medel { background: var(--warn); color: #fff; }
+.badge.låg { background: var(--muted); color: #fff; }
+ul { margin: 6px 0; padding-left: 20px; } li { margin: 3px 0; }
+.pitches { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pitch-box { text-align: center; } .pitch-box svg { width: 100%; max-width: 260px; height: auto; }
+.pitch-box .label { font-weight: 600; margin-bottom: 4px; min-height: 3em; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; }
+td.V { color: var(--good); font-weight: 700; } td.F { color: var(--bad); font-weight: 700; } td.O { font-weight: 700; }
+details { margin-top: 8px; } summary { cursor: pointer; font-weight: 600; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 760px) { .grid2, .pitches { grid-template-columns: 1fr; } }
+.hidden { display: none; }
+.grid2 > *, .hero > *, .pitches > * { min-width: 0; }
+tr.highlight td { background: var(--accent-soft); font-weight: 600; }
+td.pos { color: var(--good); font-weight: 600; } td.neg { color: var(--bad); font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>MZ Scouting</h1>
+  <p>Analys av din nästa ligamotståndare utifrån deras senaste ligamatcher.</p>
+</header>
+<main>
+  <section class="card hidden" id="snapshotSection">
+    <h2 id="snapTitle">Din serie</h2>
+    <p class="muted" id="snapInfo"></p>
+    <div id="snapUpcomingWrap"><h3>Kommande ligamatcher</h3><div id="snapUpcoming" class="fixtures"></div></div>
+    <h3>Alla lag i serien</h3>
+    <p class="muted">Sorterade efter styrka. Klicka på ett lag för att se rapport och förslag.</p>
+    <div id="snapTeams" class="fixtures"></div>
+  </section>
+
+  <section class="card" id="liveSection">
+    <h2>Mitt lag</h2>
+    <div class="row">
+      <label for="myTeam">Lag-ID</label>
+      <input id="myTeam" inputmode="numeric" placeholder="t.ex. 13659">
+      <button id="loadUpcoming">Visa kommande ligamatcher</button>
+    </div>
+    <p class="muted">Lag-ID är talet efter <code>tid=</code> i adressen till ditt lag.</p>
+    <div id="upcomingStatus" class="muted"></div>
+    <div id="fixtures" class="fixtures"></div>
+    <details>
+      <summary>Analysera ett lag direkt</summary>
+      <div class="row" style="margin-top:8px">
+        <input id="oppTeam" inputmode="numeric" placeholder="motståndarens lag-ID">
+        <label class="muted"><input type="checkbox" id="oppHome" style="width:auto"> de spelar hemma</label>
+        <button id="scoutManual" class="secondary">Analysera</button>
+      </div>
+    </details>
+  </section>
+
+  <section class="card" id="leagueSection">
+    <h2>Ligadatabas</h2>
+    <p class="muted">Hämtar alla ligamatcher i din serie den här säsongen. Förslagen bygger då även på matcher mot
+      andra lag som spelar samma formation som motståndaren, och tar hänsyn till lagens styrka.
+      Första gången tar det en stund (några sekunder per match); sedan hämtas bara nya matcher.</p>
+    <div class="row">
+      <button id="buildLeague" class="secondary">Bygg / uppdatera ligadatabas</button>
+      <span id="leagueStatus" class="muted"></span>
+    </div>
+  </section>
+
+  <section id="progressCard" class="card hidden">
+    <h2 id="progressTitle">Hämtar…</h2>
+    <div class="progress"><div id="progressBar"></div></div>
+    <div id="progressText" class="muted"></div>
+  </section>
+
+  <div id="report" class="hidden">
+    <section class="card">
+      <h2 id="repTitle"></h2>
+      <div id="repSummary" class="muted"></div>
+    </section>
+
+    <section class="card">
+      <div class="hero">
+        <div>
+          <div class="row"><h2 style="margin:0">Förslag på upplägg</h2> <span id="confidence" class="badge"></span></div>
+          <div id="recFormation" class="big"></div>
+          <div id="recChips" class="chips"></div>
+          <h3>Varför</h3>
+          <ul id="recReasons"></ul>
+          <div id="recAvoidWrap"><h3>Undvik</h3><ul id="recAvoid"></ul></div>
+          <p class="muted">Förslaget bygger på hur andra lag har gått mot motståndaren. Små underlag vägs ner
+            mot genomsnittet. Spelarnas kvalitet och motståndarnas styrka påverkar också utfallet.</p>
+        </div>
+        <div>
+          <div class="pitches">
+            <div class="pitch-box"><div class="label" style="color:var(--me)">Ditt förslag</div><div id="pitchMe"></div></div>
+            <div class="pitch-box"><div class="label" style="color:var(--them)" id="pitchThemLabel">Väntad motståndare</div><div id="pitchThem"></div></div>
+          </div>
+          <details>
+            <summary>Koordinater för taktikeditorn</summary>
+            <p class="muted">Genomsnittliga startpositioner för lagen som spelat den föreslagna formationen mot dem.
+              Målvakten står på 103/315.</p>
+            <div class="table-wrap"><table id="coordTable"></table></div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Underlag för förslaget</h2>
+      <p class="muted" id="evidenceNote"></p>
+      <div id="choiceTables" class="grid2"></div>
+    </section>
+
+    <section class="card hidden" id="strengthCard">
+      <h2>Lagstyrka i serien</h2>
+      <p class="muted">Väntad målskillnad per match mot ett genomsnittslag, räknad ur ligadatabasen.</p>
+      <div class="table-wrap"><table id="strengths"></table></div>
+    </section>
+
+    <section class="card grid2">
+      <div>
+        <h2>Väntat upplägg</h2>
+        <div id="likely"></div>
+        <h3>Under matchen</h3>
+        <ul id="inMatch"></ul>
+      </div>
+      <div>
+        <h2>Trolig startelva</h2>
+        <div class="table-wrap"><table id="starters"></table></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Alla matcher</h2>
+      <div class="table-wrap"><table id="matches"></table></div>
+    </section>
+  </div>
+</main>
+
+<script id="snapshot" type="application/json">null</script>
+<script>
+const SNAPSHOT = JSON.parse(document.getElementById("snapshot").textContent || "null");
+const SV = {
+  wings: "Kantspel", shortpass: "Kortpassningsspel", longball: "Långbollar",
+  offensive: "Offensiv", normal: "Normal", defensive: "Defensiv",
+  aggressive: "Aggressiv", passive: "Passiv",
+  tactic: "taktik", playstyle: "spelstil", aggression: "aggressivitet",
+};
+const sv = v => SV[v] || v;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const bold = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+const svText = s => s.replace(/\b(wings|shortpass|longball|offensive|defensive|aggressive|passive|normal)\b/g,
+  w => sv(w).toLowerCase());
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const data = await r.json().catch(() => ({ error: "Ogiltigt svar från servern" }));
+  if (!r.ok || data.error) throw new Error(data.error || r.statusText);
+  return data;
+}
+
+let polling = null;
+$("myTeam").value = store.get("myTeam") || "";
+const myTeam = () => (/^\d+$/.test($("myTeam").value.trim()) ? Number($("myTeam").value.trim()) : null);
+const signed = x => (x > 0 ? "+" : x < 0 ? "−" : "±") + Math.abs(x).toFixed(1);
+
+async function leagueInfo() {
+  const team = myTeam();
+  if (!team) { $("leagueStatus").textContent = "Ange ditt lag-ID först."; return; }
+  try {
+    const info = await api(`/api/league?team=${team}`);
+    $("leagueStatus").textContent = info.exists
+      ? `${info.matches} matcher, ${info.teams} lag${info.series ? ` (${info.series})` : ""}.`
+      : "Ingen ligadatabas ännu.";
+  } catch (e) { $("leagueStatus").textContent = e.message; }
+}
+if (!SNAPSHOT) leagueInfo();
+$("myTeam").addEventListener("change", () => { store.set("myTeam", $("myTeam").value.trim()); leagueInfo(); });
+
+function runJob(job, title, onDone) {
+  clearInterval(polling);
+  $("progressCard").classList.remove("hidden");
+  $("progressTitle").textContent = title;
+  $("progressBar").style.width = "0";
+  polling = setInterval(async () => {
+    const j = await api(`/api/job?id=${job}`).catch(e => ({ status: "fel", error: e.message }));
+    $("progressBar").style.width = j.total ? `${Math.round(100 * j.done / j.total)}%` : "0";
+    $("progressText").textContent = j.status === "klar" ? "Klart" :
+      `${j.status}${j.total ? ` (${j.done} av ${j.total})` : ""}`;
+    if (j.status === "fel") {
+      clearInterval(polling);
+      $("progressText").innerHTML = `<span class="error">${esc(j.error)}</span>`;
+    } else if (j.status === "klar") {
+      clearInterval(polling);
+      $("progressCard").classList.add("hidden");
+      onDone(j);
+    }
+  }, 1000);
+}
+
+$("buildLeague").onclick = async () => {
+  const team = myTeam();
+  if (!team) { $("leagueStatus").textContent = "Ange ditt lag-ID först."; return; }
+  store.set("myTeam", String(team));
+  $("buildLeague").disabled = true;
+  try {
+    const { job } = await api("/api/league", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ my_team: team }),
+    });
+    runJob(job, "Bygger ligadatabas…", j => {
+      $("buildLeague").disabled = false;
+      leagueInfo();
+      if (j.log && j.log.length) $("leagueStatus").textContent += ` Hoppade över ${j.log.length} (t.ex. walkover).`;
+    });
+  } catch (e) {
+    $("buildLeague").disabled = false;
+    $("leagueStatus").innerHTML = `<span class="error">${esc(e.message)}</span>`;
+  }
+};
+
+$("loadUpcoming").onclick = async () => {
+  const team = $("myTeam").value.trim();
+  if (!/^\d+$/.test(team)) { $("upcomingStatus").textContent = "Ange ditt lag-ID (bara siffror)."; return; }
+  store.set("myTeam", team);
+  $("upcomingStatus").textContent = "Hämtar kommande matcher…";
+  $("fixtures").innerHTML = "";
+  try {
+    const { matches } = await api(`/api/upcoming?team=${team}`);
+    if (!matches.length) {
+      $("upcomingStatus").innerHTML = "Inga kommande ligamatcher hittades. Använd <b>Analysera ett lag direkt</b> nedan.";
+      return;
+    }
+    $("upcomingStatus").textContent = "Klicka på en match för att analysera motståndaren.";
+    for (const m of matches) {
+      const b = document.createElement("button");
+      b.className = "fixture";
+      b.innerHTML = `<span class="muted">${esc((m.date || "").slice(0, 16))} · ${m.home ? "Hemma" : "Borta"}</span>
+        <b>${esc(m.opponent)}</b><span class="muted">lag-ID ${m.opponent_id}</span>`;
+      b.onclick = () => {
+        document.querySelectorAll(".fixture").forEach(x => x.classList.remove("active"));
+        b.classList.add("active");
+        scout(m.opponent_id, !m.home);
+      };
+      $("fixtures").appendChild(b);
+    }
+  } catch (e) {
+    $("upcomingStatus").innerHTML = `<span class="error">${esc(e.message)}</span> Använd <b>Analysera ett lag direkt</b> nedan.`;
+  }
+};
+
+$("scoutManual").onclick = () => {
+  const team = $("oppTeam").value.trim();
+  if (/^\d+$/.test(team)) scout(Number(team), $("oppHome").checked);
+};
+
+async function scout(team, opponentHome) {
+  $("report").classList.add("hidden");
+  try {
+    const { job } = await api("/api/scout", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ team, opponent_home: opponentHome, my_team: myTeam() }),
+    });
+    runJob(job, "Hämtar motståndarens ligamatcher…", j => render(j.result, opponentHome, j.log));
+  } catch (e) {
+    $("progressCard").classList.remove("hidden");
+    $("progressText").innerHTML = `<span class="error">${esc(e.message)}</span>`;
+  }
+}
+
+function pitch(shape, color, label) {
+  if (!shape) return `<p class="muted">Ingen formation att visa.</p>`;
+  const W = 300, H = 400, x = w => 10 + w / 750 * (W - 20), y = d => H - 10 - d / 1000 * (H - 20);
+  const dots = shape.map(p => `<circle cx="${x(p.w)}" cy="${y(p.d)}" r="9" fill="${color}" stroke="#fff" stroke-width="2">
+      <title>Editor ${p.editor_x}/${p.editor_y}</title></circle>`).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">
+    <rect x="0" y="0" width="${W}" height="${H}" rx="8" fill="var(--pitch)"/>
+    <g fill="none" stroke="var(--pitch-line)" stroke-width="2">
+      <rect x="10" y="10" width="${W - 20}" height="${H - 20}"/>
+      <line x1="10" y1="${H / 2}" x2="${W - 10}" y2="${H / 2}"/>
+      <circle cx="${W / 2}" cy="${H / 2}" r="36"/>
+      <rect x="${W / 2 - 70}" y="10" width="140" height="56"/>
+      <rect x="${W / 2 - 70}" y="${H - 66}" width="140" height="56"/>
+    </g>
+    <circle cx="${W / 2}" cy="${H - 22}" r="9" fill="${color}" stroke="#fff" stroke-width="2" opacity=".7"/>
+    ${dots}
+  </svg>`;
+}
+
+function resultCell(r) { return `<td class="${r}">${r}</td>`; }
+
+function render(d, opponentHome, log) {
+  $("report").classList.remove("hidden");
+  $("repTitle").textContent = `${d.name} (lag-ID ${d.team_id})`;
+  const small = d.matches_count < 5 ? " <b>Litet underlag – se mönstren som indikationer.</b>" : "";
+  $("repSummary").innerHTML = `${d.matches_count} ligamatcher. Deras resultat: ${d.record.V}V ${d.record.O}O ${d.record.F}F,
+    mål ${d.goals[0]}–${d.goals[1]}.${small}` + (log && log.length ? `<br>Hoppades över: ${esc(log.join("; "))}` : "");
+
+  const rec = d.recommendation;
+  const [backs, form, tactic, playstyle, aggression] = rec.choices;
+  $("confidence").textContent = `säkerhet: ${rec.confidence}`;
+  $("confidence").className = `badge ${rec.confidence}`;
+  $("recFormation").textContent = form.best ? form.best.value : "–";
+  const chipLabel = { "Antal backar": "", "Taktik": "", "Spelstil": "Spelstil ", "Aggressivitet": "Aggressivitet " };
+  $("recChips").innerHTML = [backs, tactic, playstyle, aggression].filter(c => c.best)
+    .map(c => `<span class="chip">${esc((chipLabel[c.label] ?? "") + sv(c.best.value).toLowerCase())}</span>`).join("");
+  $("recReasons").innerHTML = rec.reasons.map(r => `<li>${bold(svText(r))}</li>`).join("");
+  $("recAvoid").innerHTML = rec.avoid.map(r => `<li>${esc(svText(r))}</li>`).join("");
+  $("recAvoidWrap").classList.toggle("hidden", !rec.avoid.length);
+
+  $("pitchMe").innerHTML = pitch(rec.shape, "var(--me)", "Föreslagen formation");
+  $("pitchThemLabel").textContent = `Väntad motståndare: ${rec.opponent_formation || "?"}`
+    + (opponentHome === true ? " (hemma)" : opponentHome === false ? " (borta)" : "");
+  $("pitchThem").innerHTML = pitch(rec.opponent_shape, "var(--them)", "Motståndarens väntade formation");
+  $("coordTable").innerHTML = rec.shape
+    ? "<tr><th>Spelare</th><th>x</th><th>y</th></tr>" +
+      rec.shape.map((p, i) => `<tr><td>${i + 1}</td><td>${p.editor_x}</td><td>${p.editor_y}</td></tr>`).join("")
+    : "";
+
+  $("evidenceNote").innerHTML = `${rec.direct_matches} matcher mot ${esc(d.name)}` +
+    (rec.uses_league ? ` och ${rec.similar_matches} ligamatcher mot andra lag som spelat ${esc(rec.opponent_formation || "samma formation")}
+      (matcher mot ${esc(d.name)} väger dubbelt). <b>+/− mot väntat</b> är målskillnaden per match jämfört med vad lagens styrka
+      och hemmaplan gav anledning att vänta.`
+      : `. Bygg ligadatabasen för ett större underlag och hänsyn till lagens styrka. <b>+/− mot väntat</b> är här
+      målskillnaden per match.`) + " V betyder att laget som mötte dem vann.";
+  $("choiceTables").innerHTML = rec.choices.map(c => `
+    <div><h3>${esc(c.label)}</h3><div class="table-wrap"><table>
+      <tr><th></th><th>Matcher</th><th>Mot dem</th><th>V</th><th>O</th><th>F</th><th>+/− mot väntat</th></tr>
+      ${c.options.map(o => `<tr><td>${esc(sv(o.value))}</td><td>${o.matches}</td><td>${o.direct}</td><td>${o.wins}</td>
+        <td>${o.draws}</td><td>${o.losses}</td><td class="${o.resid > 0 ? "pos" : o.resid < 0 ? "neg" : ""}">${signed(o.resid)}</td></tr>`).join("")}
+    </table></div></div>`).join("");
+  $("strengthCard").classList.toggle("hidden", !d.strengths);
+  $("strengths").innerHTML = d.strengths ? "<tr><th>#</th><th>Lag</th><th>Styrka</th><th>Matcher</th></tr>" +
+    d.strengths.map((s, i) => `<tr class="${s.highlight ? "highlight" : ""}"><td>${i + 1}</td><td>${esc(s.name)}</td>
+      <td>${signed(s.strength)}</td><td>${s.matches}</td></tr>`).join("") : "";
+
+  const sideName = { total: "Totalt", home: "Hemma", away: "Borta" };
+  $("likely").innerHTML = Object.entries(d.likely).filter(([, v]) => Object.keys(v).length).map(([side, v]) => {
+    const parts = Object.entries(v).map(([k, x]) => `${k} <b>${esc(sv(x.value))}</b> (${Math.round(x.share * 100)} %)`);
+    const n = Object.values(v)[0].matches;
+    return `<p><b>${sideName[side]}</b> <span class="muted">(${n} matcher)</span><br>${parts.join(", ")}</p>`;
+  }).join("");
+
+  const states = { under: "När de ligger under", lika: "Vid lika ställning", leder: "När de leder", "okänd": "Okänd ställning" };
+  const changes = Object.entries(d.changes_by_state).map(([s, c]) =>
+    `<li>${states[s] || s}: ${Object.entries(c).map(([k, n]) => `${esc(k)} (${n})`).join(", ")}</li>`).join("");
+  $("inMatch").innerHTML = `<li>Taktikändringar i ${d.matches_with_changes} av ${d.matches_count} matcher.</li>${changes}
+    <li>Byten per match: ${d.avg_subs}</li>`;
+
+  $("starters").innerHTML = "<tr><th>Spelare</th><th>Starter</th><th>Roll</th></tr>" + d.starters.map(s =>
+    `<tr><td>${esc(s.name)}</td><td>${s.starts}/${d.matches_count}</td><td>${esc(s.role)}</td></tr>`).join("");
+
+  $("matches").innerHTML = `<tr><th>Datum</th><th>H/B</th><th>Motståndare</th><th>Res.</th><th></th><th>Formation</th>
+    <th>Upplägg</th><th>Boll %</th><th>Ändringar</th><th>Motst. formation</th><th>Motst. upplägg</th></tr>` +
+    d.matches.map(m => `<tr><td>${esc(m.date)}</td><td>${m.home ? "H" : "B"}</td><td>${esc(m.opponent)}</td>
+      <td>${m.goals_for}–${m.goals_against}</td>${resultCell(m.result)}<td>${esc(m.formation || "?")}</td>
+      <td>${esc(m.setup)}</td><td>${esc(m.possession || "–")}</td><td>${esc(m.changes.join("; ") || "–")}</td>
+      <td>${esc(m.opponent_formation || "?")}</td><td>${esc(m.opponent_setup)}</td></tr>`).join("");
+  $("report").scrollIntoView({ behavior: "smooth" });
+}
+
+// Färdig ögonblicksbild (GitHub-publicering): ingen server, all data finns i sidan.
+function initSnapshot(snap) {
+  ["liveSection", "leagueSection"].forEach(id => $(id).classList.add("hidden"));
+  $("snapshotSection").classList.remove("hidden");
+  $("snapTitle").textContent = `${snap.my_team_name || "Din serie"}${snap.series ? ` · ${snap.series}` : ""}`;
+  const when = new Date(snap.generated);
+  $("snapInfo").textContent = `Uppdaterad ${when.toLocaleString("sv-SE", { dateStyle: "medium", timeStyle: "short" })}. ` +
+    `${snap.league_matches} ligamatcher, ${snap.teams.length + 1} lag.`;
+  const open = (btn, report, opponentHome) => {
+    document.querySelectorAll(".fixture").forEach(x => x.classList.remove("active"));
+    btn.classList.add("active");
+    render(report, opponentHome, []);
+  };
+  const card = (html, onclick) => {
+    const b = document.createElement("button");
+    b.className = "fixture";
+    b.innerHTML = html;
+    b.onclick = () => onclick(b);
+    return b;
+  };
+  $("snapUpcomingWrap").classList.toggle("hidden", !snap.upcoming.length);
+  snap.upcoming.forEach((m, i) => {
+    const report = snap.reports[m.opponent_id];
+    if (!report) return;
+    $("snapUpcoming").appendChild(card(
+      `<span class="muted">${i === 0 ? "<strong>Nästa match</strong> · " : ""}${esc((m.date || "").slice(0, 16))} · ${m.home ? "Hemma" : "Borta"}</span>
+       <b>${esc(m.opponent)}</b>`,
+      b => open(b, m.home ? report.as_away : report.as_home, !m.home)));
+  });
+  snap.teams.filter(t => snap.reports[t.team_id]).forEach((t, i) => {
+    $("snapTeams").appendChild(card(
+      `<span class="muted">${i + 1}. styrka ${signed(t.strength)}</span><b>${esc(t.name)}</b>`,
+      b => open(b, snap.reports[t.team_id].total, null)));
+  });
+}
+if (SNAPSHOT) initSnapshot(SNAPSHOT);
+</script>
+</body>
+</html>

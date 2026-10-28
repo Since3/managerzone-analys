@@ -1,0 +1,69 @@
+name: MZ Scouting
+
+# Bygger mobilsidan med rapporter för hela serien och publicerar den på GitHub Pages.
+# Lag-ID: 13659 som standard; kan ändras med repovariabeln MZ_TEAM
+# (Settings → Secrets and variables → Actions → Variables).
+
+on:
+  schedule:
+    # Tider i UTC. Ligamatcherna spelas onsdag och söndag; kör samma kväll och morgonen därpå
+    # (ifall matchstatistiken inte var klar).
+    - cron: "37 20 * * 0,3"
+    - cron: "41 5 * * 1,4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: mz-scouting
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Hämta sparade matcher
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: mz-data-${{ github.run_id }}
+          restore-keys: mz-data-
+
+      - name: Tester
+        run: python -m unittest discover -s tests -t .
+
+      - name: Bygg mobilsidan
+        env:
+          MZ_TEAM: ${{ vars.MZ_TEAM || '13659' }}
+        run: python -m mzanalys publicera --mitt-lag "$MZ_TEAM" --ut site
+
+      - name: Spara matcher till nästa körning
+        if: always() && hashFiles('data/**') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: mz-data-${{ github.run_id }}
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
