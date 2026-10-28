@@ -68,6 +68,19 @@ class LeagueTest(unittest.TestCase):
             self.assertEqual(client.calls, calls)
             self.assertEqual(len(league.load_matches(client, again)), 6)
 
+    def test_finds_teams_you_have_not_met(self):
+        # C och D har inte mött dig: C hittas via sin match mot A, D via sin match mot C.
+        C, D = 52, 53
+        with tempfile.TemporaryDirectory() as tmp:
+            client = FakeLeagueClient(Path(tmp) / "matches")
+            client.files[BASE + 10] = _match(BASE + 10, A, C, (1, 1))
+            client.files[BASE + 11] = _match(BASE + 11, C, D, (2, 1))
+            index = league.collect(client, ME)
+            self.assertEqual(set(index.teams), {ME, TAFTE, A, B, C, D})
+            self.assertIn(BASE + 11, index.mids)
+            self.assertNotIn(BASE + 50, index.mids)  # annan serie
+            self.assertEqual(len(index.mids), 8)
+
 
 if __name__ == "__main__":
     unittest.main()

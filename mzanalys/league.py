@@ -106,23 +106,35 @@ def collect(client: Client, my_team: int, progress=lambda text, done, total: Non
     if series_count:
         index.series = max(series_count, key=series_count.get)
 
-    # Övriga lags ligamatcher i samma säsongsblock.
-    others = [tid for tid in index.teams if tid != my_team]
-    wanted: list[int] = []
-    for i, tid in enumerate(others, 1):
-        progress(f"hämtar matchlista för {index.teams[tid]}", i, len(others))
-        try:
-            mids = matchlist.league_mids_from_xml(client.team_matchlist_xml(tid, limit=200))
-        except (FetchError, ValueError) as e:
-            index.failed[tid] = f"matchlista: {e}"
-            continue
-        wanted += [mid for mid in mids if lo <= mid <= hi and mid not in index.mids and mid not in wanted]
-
-    for i, mid in enumerate(wanted, 1):
-        progress("hämtar ligans matcher", i, len(wanted))
-        m = fetch(mid)
-        if m and in_series(m, index.series):
-            index.mids.append(mid)
+    # Övriga lags ligamatcher i samma säsongsblock. Lag som dyker upp i de hämtade matcherna
+    # (motståndare du ännu inte mött) läggs till och gås igenom i nästa varv, tills inga nya
+    # lag tillkommer.
+    listed: set[int] = {my_team}
+    seen: set[int] = set(index.mids)
+    while True:
+        todo = [tid for tid in index.teams if tid not in listed]
+        if not todo:
+            break
+        wanted: list[int] = []
+        for i, tid in enumerate(todo, 1):
+            listed.add(tid)
+            progress(f"hämtar matchlista för {index.teams[tid]}", i, len(todo))
+            try:
+                mids = matchlist.league_mids_from_xml(client.team_matchlist_xml(tid, limit=200))
+            except (FetchError, ValueError) as e:
+                index.failed[tid] = f"matchlista: {e}"
+                continue
+            for mid in mids:
+                if lo <= mid <= hi and mid not in seen:
+                    seen.add(mid)
+                    wanted.append(mid)
+        for i, mid in enumerate(wanted, 1):
+            progress("hämtar ligans matcher", i, len(wanted))
+            m = fetch(mid)
+            if m and in_series(m, index.series):
+                index.mids.append(mid)
+                for t in m.teams:
+                    index.teams.setdefault(t.id, t.name)
     index.mids.sort()
     return index
 

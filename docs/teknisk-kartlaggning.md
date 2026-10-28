@@ -16,6 +16,7 @@ Testet kördes av användaren från en vanlig dator med verktyget `mzanalys`, ut
 - **Nytt:** `SoccerStatistics@type` är numeriskt: **`1` = ligamatch** (1628449768) och **`6` = cupmatch** (1637077861). Vänskapsmatcher och andra typer är ännu inte kartlagda.
 - `/xml/match_info.php` svarar med **fel** för en match som ännu inte spelats (1628449780). Den kan alltså inte användas för att hitta nästa motståndare.
 - **`/xml/team_matchlist.php` fungerar fortfarande utan inloggning** (lag 2768). Matchtyperna i listan är ord: `league` (8), `friendly` (22) och `private_cup_group` (18) av 48 matcher. Ligamatcher är alltså `league` i listan men `1` i matchfilen.
+- Ligadatabasen (2026-10-28) hittade serien **div3.20** ur matchfilernas `MetaData@series_name`, som alltså finns i riktiga filer. Första versionen hittade bara 7 lag (bara de du själv mött); insamlingen letar nu vidare via de hämtade matcherna.
 - Taktikändringar under matchen är verifierade: i cupmatch 1637077861 visade filen att hemmalaget i 66:e minuten bytte till `playstyle=defensive` och `tactic=shortpass`.
 
 ---
