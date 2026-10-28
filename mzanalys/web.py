@@ -29,12 +29,13 @@ STATIC_FILES = {
 def _option(o: recommend.Option) -> dict:
     return {"value": o.value, "matches": o.matches, "direct": o.direct, "wins": o.wins, "draws": o.draws,
             "losses": o.losses, "ppm": round(o.ppm, 2), "resid": round(o.resid, 2),
-            "score": round(o.score, 2), "weight": o.weight}
+            "score": round(o.score, 2), "weight": o.weight, "combined": round(o.combined, 2)}
 
 
 def _choice(c: recommend.Choice) -> dict:
     return {"label": c.label, "best": _option(c.best) if c.best else None,
-            "options": [_option(o) for o in c.options]}
+            "options": [_option(o) for o in c.options],
+            "own": {k: _option(o) for k, o in c.own.items()}}
 
 
 def _shape(points) -> list[dict] | None:
@@ -54,8 +55,9 @@ def _strength_table(ratings, teams: dict[int, str], highlight: int) -> list[dict
 
 
 def scouting_json(profile: analysis.TeamProfile, opponent_home: bool | None,
-                  league_matches=None, ratings=None, teams: dict[int, str] | None = None) -> dict:
-    rec = recommend.recommend(profile, opponent_home, league_matches, ratings)
+                  league_matches=None, ratings=None, teams: dict[int, str] | None = None,
+                  own: analysis.TeamProfile | None = None) -> dict:
+    rec = recommend.recommend(profile, opponent_home, league_matches, ratings, own)
     n = len(profile.matches)
     likely = {
         side: {k: {"value": v, "share": round(s, 2), "matches": m} for k, (v, s, m) in profile.most_likely(h).items()}
@@ -88,6 +90,8 @@ def scouting_json(profile: analysis.TeamProfile, opponent_home: bool | None,
             "uses_league": rec.uses_league,
             "direct_matches": rec.direct_matches,
             "similar_matches": rec.similar_matches,
+            "own_matches": rec.own_matches,
+            "own_name": own.name if own and rec.own_matches else None,
             "choices": [_choice(c) for c in rec.choices],
             "reasons": rec.reasons,
             "avoid": rec.avoid,
@@ -168,19 +172,20 @@ class App:
                     job["log"].append(str(e))
                 job["done"] += 1
 
-        league_matches, ratings, teams = None, None, None
+        league_matches, ratings, teams, own = None, None, None, None
         index = league.LeagueIndex.load(self._index_path(my_team)) if my_team else None
         if index:
             league_matches = league.load_matches(self.client, index)
             ratings = league.ratings(league_matches)
             teams = index.teams
+            own = analysis.build_profile(league_matches, my_team)
             # Ligadatabasen kan innehålla fler av motståndarens matcher än de senaste.
             known = {m.mid for m in matches}
             matches += [m for m in league_matches if m.mid not in known]
         profile = analysis.build_profile(matches, team)
         if not index:
             profile.matches = profile.matches[: self.antal]
-        job["result"] = scouting_json(profile, opponent_home, league_matches, ratings, teams)
+        job["result"] = scouting_json(profile, opponent_home, league_matches, ratings, teams, own)
         job["status"] = "klar"
 
 

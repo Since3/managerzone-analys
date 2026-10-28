@@ -87,6 +87,34 @@ class RecommendTest(unittest.TestCase):
         five = next(o for o in rec.backs.options if o.value == "5 backar")
         self.assertEqual((five.matches, five.direct, five.wins, five.resid), (2, 0, 2, 2.5))
 
+    def _own(self, setup, score, n=6):
+        me = (13659, "Vi")
+        return analysis.build_profile([
+            parse_stats(make_stats_xml(200 + i, me, (300 + i, f"M{i}"), score, home_shape=F_4213, home_setup=setup))
+            for i in range(n)], 13659)
+
+    def test_own_history_can_tip_a_close_choice(self):
+        # Mot Täfte: normal spelstil −0.5/match (6 matcher), offensiv −2.0/match (2 matcher).
+        # Ditt lag har vunnit stort med offensiv spelstil: +3/match i 6 matcher.
+        own = self._own(("shortpass", "offensive", "normal"), (4, 1))
+        rec = recommend.recommend(self.profile, opponent_home=True, own=own)
+        self.assertEqual(rec.own_matches, 6)
+        self.assertEqual(rec.playstyle.best.value, "offensive")
+        self.assertEqual(rec.playstyle.own["offensive"].matches, 6)
+        self.assertTrue(any("Valt framför normal" in r for r in rec.reasons))
+        # Antal backar ändras inte: fyra backar är klart bäst mot Täfte och ditt lag spelar också fyra.
+        self.assertEqual(rec.backs.best.value, "4 backar")
+
+    def test_own_history_does_not_override_clear_pattern(self):
+        # Ditt lag har gått bra med långbollar, men mot Täfte har kantspel varit klart bäst.
+        own = self._own(("longball", "normal", "normal"), (2, 1), n=3)
+        rec = recommend.recommend(self.profile, opponent_home=True, own=own)
+        self.assertEqual(rec.tactic.best.value, "wings")
+
+    def test_without_own_history_unchanged(self):
+        rec = recommend.recommend(self.profile, opponent_home=True)
+        self.assertEqual((rec.own_matches, rec.playstyle.best.value), (0, "normal"))
+
     def test_ratings_hand_calculated(self):
         from mzanalys import league as lg
         # A–B 2–0 och B–A 1–1. Hemmafördel = (2 + 0) / 2 = 1.

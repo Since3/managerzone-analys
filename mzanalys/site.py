@@ -27,6 +27,7 @@ def snapshot(client: Client, my_team: int, progress=lambda text, done, total: No
     except (FetchError, ValueError):
         upcoming = []  # kommande matcher är inte verifierade; sidan visar då bara alla lag
 
+    own = analysis.build_profile(matches, my_team)
     reports: dict[str, dict] = {}
     for tid in index.teams:
         if tid == my_team:
@@ -34,10 +35,10 @@ def snapshot(client: Client, my_team: int, progress=lambda text, done, total: No
         profile = analysis.build_profile(matches, tid)
         if not profile.matches:
             continue
-        report = {"total": scouting_json(profile, None, matches, ratings, index.teams)}
+        report = {"total": scouting_json(profile, None, matches, ratings, index.teams, own)}
         if any(m["opponent_id"] == tid for m in upcoming):
-            report["as_home"] = scouting_json(profile, True, matches, ratings, index.teams)
-            report["as_away"] = scouting_json(profile, False, matches, ratings, index.teams)
+            report["as_home"] = scouting_json(profile, True, matches, ratings, index.teams, own)
+            report["as_away"] = scouting_json(profile, False, matches, ratings, index.teams, own)
         reports[str(tid)] = report
 
     teams = sorted(

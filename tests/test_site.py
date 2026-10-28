@@ -27,6 +27,9 @@ class SiteTest(unittest.TestCase):
             self.assertEqual([m["opponent_id"] for m in snap["upcoming"]], [TAFTE])
             self.assertEqual(set(snap["reports"][str(TAFTE)]), {"total", "as_home", "as_away"})
             self.assertNotIn(ME, [t["team_id"] for t in snap["teams"]])
+            rec = snap["reports"][str(TAFTE)]["total"]["recommendation"]
+            self.assertEqual(rec["own_matches"], 3)  # dina tre ligamatcher i testligan
+            self.assertTrue(any(c["own"] for c in rec["choices"]))
 
             page = site.write_site(snap, Path(tmp) / "site")
             html = page.read_text(encoding="utf-8")
