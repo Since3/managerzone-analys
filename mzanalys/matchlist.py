@@ -79,20 +79,22 @@ def league_mids_from_html(html: str) -> list[int]:
     return out
 
 
-def league_mids_from_xml(xml: str, league_types: tuple[str, ...] = ("series", "1")) -> list[int]:
-    """Match-ID:n ur team_matchlist.php, filtrerade på Match@type.
+def league_mids_from_xml(xml: str, league_types: tuple[str, ...] = ("league",)) -> list[int]:
+    """Match-ID:n ur team_matchlist.php, filtrerade på Match@type, nyaste först.
 
-    I matchfilen är ligamatcher type="1"; om XML-listan använder samma värde, eller ordet
-    "series" som sajtens filter selectType, är obekräftat; kör `mzanalys lista --visa-typer` för att se vilka värden som finns.
+    Verifierat 2026-10-28 (lag 2768, utan inloggning): listan använder typerna "league",
+    "friendly" och "private_cup_group". Observera att matchfilen i stället anger ligamatcher
+    som type="1".
     """
     root = ET.fromstring(xml)
-    out = []
+    found = []
     for m in root.iter("Match"):
         if m.get("type") in league_types:
             mid = m.get("id") or m.get("mid")
             if mid and mid.isdigit():
-                out.append(int(mid))
-    return out
+                found.append((m.get("date") or "", int(mid)))
+    found.sort(reverse=True)
+    return list(dict.fromkeys(mid for _, mid in found))
 
 
 def teams_from_match_info(xml: str) -> list[tuple[int, str]]:

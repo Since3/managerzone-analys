@@ -152,10 +152,14 @@ class MatchlistTest(unittest.TestCase):
         self.assertEqual(matchlist.league_mids_from_html(json.dumps({"list": self.HTML})), [111])
 
     def test_xml_list(self):
-        xml = ('<ManagerZone_MatchList><Match id="5" type="series"><Team/><Team/></Match>'
-               '<Match id="6" type="cup"><Team/><Team/></Match></ManagerZone_MatchList>')
-        self.assertEqual(matchlist.league_mids_from_xml(xml), [5])
-        self.assertEqual(matchlist.match_types_in_xml(xml), {"series": 1, "cup": 1})
+        xml = ('<ManagerZone_MatchList>'
+               '<Match id="5" type="league" date="2026-10-01 20:00:00"><Team/><Team/></Match>'
+               '<Match id="6" type="friendly" date="2026-10-02 20:00:00"><Team/><Team/></Match>'
+               '<Match id="7" type="league" date="2026-10-08 20:00:00"><Team/><Team/></Match>'
+               '<Match id="8" type="private_cup_group"><Team/><Team/></Match></ManagerZone_MatchList>')
+        self.assertEqual(matchlist.league_mids_from_xml(xml), [7, 5])
+        self.assertEqual(matchlist.match_types_in_xml(xml),
+                         {"league": 2, "friendly": 1, "private_cup_group": 1})
 
     def test_teams_from_match_info(self):
         xml = ('<ManagerZone_MatchInfo><Match id="1628449780">'

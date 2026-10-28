@@ -13,7 +13,8 @@ Testet kördes av användaren från en vanlig dator med verktyget `mzanalys`, ut
 - Startpositionerna gav formationerna 4-3-1-2 och 5-3-1-1. De är ännu inte bekräftade.
 - `check-match` kan även svara `walkover` (cupmatch 1637344955, vunnen på walkover). Då finns ingen matchfil.
 - **Nytt:** `SoccerStatistics@type` är numeriskt: **`1` = ligamatch** (1628449768) och **`6` = cupmatch** (1637077861). Vänskapsmatcher och andra typer är ännu inte kartlagda.
-- Verktyget använder nu `/xml/match_info.php` för att ta fram lagen i en kommande match. Att det fungerar för ospelade matcher är ännu inte verifierat.
+- `/xml/match_info.php` svarar med **fel** för en match som ännu inte spelats (1628449780). Den kan alltså inte användas för att hitta nästa motståndare.
+- **`/xml/team_matchlist.php` fungerar fortfarande utan inloggning** (lag 2768). Matchtyperna i listan är ord: `league` (8), `friendly` (22) och `private_cup_group` (18) av 48 matcher. Ligamatcher är alltså `league` i listan men `1` i matchfilen.
 - Taktikändringar under matchen är verifierade: i cupmatch 1637077861 visade filen att hemmalaget i 66:e minuten bytte till `playstyle=defensive` och `tactic=shortpass`.
 
 ---

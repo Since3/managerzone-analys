@@ -62,7 +62,7 @@ def cmd_lista(args) -> int:
             if args.session:
                 mids = matchlist.league_mids_from_html(client.league_matchlist_html(args.lag))
             else:
-                xml = client.team_matchlist_xml(args.lag, limit=max(args.antal * 3, 50))
+                xml = client.team_matchlist_xml(args.lag, limit=200)
                 if args.visa_typer:
                     for t, c in matchlist.match_types_in_xml(xml).items():
                         print(f"{t}: {c}")
@@ -110,7 +110,7 @@ def _opponent_mids(args, client: Client) -> list[int]:
         return mids
     if args.session:
         return matchlist.league_mids_from_html(client.league_matchlist_html(args.lag))
-    xml = client.team_matchlist_xml(args.lag, limit=max(args.antal * 3, 50))
+    xml = client.team_matchlist_xml(args.lag, limit=200)
     return matchlist.league_mids_from_xml(xml)
 
 
