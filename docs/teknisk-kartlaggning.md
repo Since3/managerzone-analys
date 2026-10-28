@@ -11,6 +11,7 @@ Testet kördes av användaren från en vanlig dator med verktyget `mzanalys`, ut
 - `getMatchFiles.php?type=stats` var först tom. `check-match` svarade `queued` två gånger och sedan `ok`, varefter filen kunde hämtas. **Verifierat: matchfilen för en ligamatch går att hämta utan inloggning efter förberedelse via `check-match`.**
 - Ur filen lästes datum (2026-10-25 18:00), lag-ID och lagnamn, hemma/borta, resultat 3–0 (**bekräftat av användaren**) samt `tactic`, `playstyle` och `aggression` för **båda** lagen. **Verifierat: motståndarens taktiska inställningar finns i matchfilen.**
 - Startpositionerna gav formationerna 4-3-1-2 och 5-3-1-1. De är ännu inte bekräftade.
+- **Formationsheuristiken är verifierad** mot 2D-visarens startbild för match Täfte Flyers – Dynamo Strandnäs (2026-10-25): verktyget gav 4-1-2-1-2 och 4-2-1-3, vilket stämmer för båda lagen. Att Täfte inte gjorde några byten bekräftades också av användaren.
 - `check-match` kan även svara `walkover` (cupmatch 1637344955, vunnen på walkover). Då finns ingen matchfil.
 - **Nytt:** `SoccerStatistics@type` är numeriskt: **`1` = ligamatch** (1628449768) och **`6` = cupmatch** (1637077861). Vänskapsmatcher och andra typer är ännu inte kartlagda.
 - `/xml/match_info.php` svarar med **fel** för en match som ännu inte spelats (1628449780). Den kan alltså inte användas för att hitta nästa motståndare.
