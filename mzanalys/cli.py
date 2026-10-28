@@ -202,7 +202,8 @@ def cmd_publicera(args) -> int:
         print(f"  {text}: {done}/{total}" if total else f"  {text}", flush=True)
 
     try:
-        snap = site.snapshot(_client(args), args.mitt_lag, progress)
+        log = args.logg or Path(args.cache).parent / "prognoser.json"
+        snap = site.snapshot(_client(args), args.mitt_lag, progress, log_path=log)
     except (FetchError, ValueError) as e:
         print(f"Kunde inte bygga sidan: {e}", file=sys.stderr)
         return 1
@@ -293,6 +294,7 @@ def main(argv: list[str] | None = None) -> int:
     pu = sub.add_parser("publicera", help="bygg en fristående mobilsida med rapporter för hela serien")
     pu.add_argument("--mitt-lag", type=int, required=True, help="ditt lag-ID")
     pu.add_argument("--ut", default="site", help="katalog för sidan (standard site)")
+    pu.add_argument("--logg", help="fil för uppföljning av förslagen (standard data/prognoser.json)")
     pu.set_defaults(func=cmd_publicera)
 
     w = sub.add_parser("webb", help="starta webbappen i din webbläsare")
