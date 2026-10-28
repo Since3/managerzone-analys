@@ -89,6 +89,13 @@ class ClientTest(unittest.TestCase):
             with self.assertRaises(FetchError):
                 c.match_stats(5)
 
+    def test_walkover_stops_immediately(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            c, calls = self._client(["", json.dumps({"response": "walkover"})], tmp)
+            with self.assertRaisesRegex(FetchError, "walkover"):
+                c.match_stats(1637344955)
+            self.assertEqual(len(calls), 2)
+
     def test_session_required(self):
         with tempfile.TemporaryDirectory() as tmp:
             c, calls = self._client([], tmp)

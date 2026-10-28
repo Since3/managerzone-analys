@@ -87,13 +87,18 @@ class Client:
         text = self._request(stats_path)
         if not _is_stats(text):
             # Filen genereras vid behov: be 2D-visaren förbereda matchen och vänta på "ok".
+            # Bara "queued" är värt att vänta på; övriga svar är slutgiltiga.
             for attempt in range(1, max_checks + 1):
                 status = self._check_match(check_path)
                 if status == "ok":
                     break
                 if status == "blocked":
                     raise FetchError(f"Match {mid}: åtkomst nekad (kräver inloggning eller är inte offentlig).")
-                self._log(f"  match {mid}: {status}, försök {attempt}/{max_checks}")
+                if status == "walkover":
+                    raise FetchError(f"Match {mid}: walkover, matchen spelades aldrig och har ingen matchfil.")
+                if status != "queued":
+                    raise FetchError(f"Match {mid}: oväntat svar från check-match: {status}")
+                self._log(f"  match {mid}: förbereds ({status}), försök {attempt}/{max_checks}")
             text = self._request(stats_path)
             if not _is_stats(text):
                 raise FetchError(f"Match {mid}: matchfilen är fortfarande tom. Försök igen senare.")

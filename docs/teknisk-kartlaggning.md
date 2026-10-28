@@ -11,6 +11,7 @@ Testet kördes av användaren från en vanlig dator med verktyget `mzanalys`, ut
 - `getMatchFiles.php?type=stats` var först tom. `check-match` svarade `queued` två gånger och sedan `ok`, varefter filen kunde hämtas. **Verifierat: matchfilen för en ligamatch går att hämta utan inloggning efter förberedelse via `check-match`.**
 - Ur filen lästes datum (2026-10-25 18:00), lag-ID och lagnamn, hemma/borta, resultat 3–0 (**bekräftat av användaren**) samt `tactic`, `playstyle` och `aggression` för **båda** lagen. **Verifierat: motståndarens taktiska inställningar finns i matchfilen.**
 - Startpositionerna gav formationerna 4-3-1-2 och 5-3-1-1. De är ännu inte bekräftade.
+- `check-match` kan även svara `walkover` (cupmatch 1637344955, vunnen på walkover). Då finns ingen matchfil.
 - **Nytt:** `SoccerStatistics@type` är numeriskt, `type="1"` för denna ligamatch, och inte `"series"`. Vilka siffror som motsvarar cup- och vänskapsmatcher är ännu inte känt.
 
 ---

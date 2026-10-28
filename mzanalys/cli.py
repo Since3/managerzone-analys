@@ -107,7 +107,11 @@ def cmd_match(args) -> int:
     if source.exists():
         text = source.read_text(encoding="utf-8")
     else:
-        text = _client(args).match_stats(int(args.match))
+        try:
+            text = _client(args).match_stats(int(args.match))
+        except (FetchError, StatsXmlError) as e:
+            print(e, file=sys.stderr)
+            return 1
     m = parse_stats(text)
     print(f"Match {m.mid}  {m.date or ''}  typ={m.type or '?'}")
     for t in m.teams:
