@@ -46,6 +46,8 @@ button:disabled { opacity: .5; cursor: default; }
 .fixtures { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-top: 12px; }
 .fixture { text-align: left; background: var(--bg); color: var(--text); border: 1px solid var(--line); padding: 12px; }
 .fixture.mine { border-color: var(--accent); }
+.stat { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.stat .big { font-size: 26px; }
 .fixture:hover, .fixture.active { border-color: var(--accent); background: var(--accent-soft); }
 .fixture b { display: block; font-size: 15px; }
 .progress { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin: 8px 0; }
@@ -90,6 +92,15 @@ td.pos { color: var(--good); font-weight: 600; } td.neg { color: var(--bad); fon
     <h3>Alla lag i serien</h3>
     <p class="muted">Sorterade efter styrka. Klicka på ett lag för att se rapport och förslag.</p>
     <div id="snapTeams" class="fixtures"></div>
+  </section>
+
+  <section class="card hidden" id="trackCard">
+    <h2>Uppföljning av förslagen</h2>
+    <p class="muted" id="trackIntro"></p>
+    <div id="trackSummary" class="grid2"></div>
+    <div id="trackDims"></div>
+    <h3>Matcher</h3>
+    <div class="table-wrap"><table id="trackTable"></table></div>
   </section>
 
   <section class="card" id="liveSection">
@@ -470,7 +481,44 @@ function initSnapshot(snap) {
     $("snapTeams").appendChild(b);
   });
 }
-if (SNAPSHOT) initSnapshot(SNAPSHOT);
+const DIM_LABEL = { backs: "Antal backar", formation: "Formation", tactic: "Taktik",
+  playstyle: "Spelstil", aggression: "Aggressivitet" };
+
+function renderTracking(t) {
+  if (!t) return;
+  $("trackCard").classList.remove("hidden");
+  const pending = t.entries.filter(e => !e.outcome);
+  $("trackIntro").innerHTML = t.evaluated
+    ? `${t.evaluated} spelade ligamatcher med förslag. "Följde förslaget" betyder att minst ${t.follow_min} av 5 val
+      (antal backar, formation, taktik, spelstil, aggressivitet) stämde. <b>+/−</b> är målskillnad per match jämfört
+      med det väntade utifrån lagens styrka.` + (t.evaluated < 6 ? " <b>Än så länge få matcher – vänta med slutsatser.</b>" : "")
+    : `Förslaget inför ${pending.length ? esc(pending[0].opponent) : "nästa match"} är sparat. Efter matchen visas här
+      hur det gick och om du följde förslaget.`;
+  const tile = (title, g) => `<div class="stat"><div class="muted">${title}</div>` + (g.matches
+    ? `<div class="big">${g.ppm.toFixed(1)} p/match</div><div class="muted">${g.matches} ${g.matches === 1 ? "match" : "matcher"} · ${g.wins}-${g.draws}-${g.losses}
+       · ${signed(g.resid)} mål/match mot väntat</div>` : `<div class="muted">Inga matcher än</div>`) + "</div>";
+  $("trackSummary").innerHTML = t.evaluated
+    ? tile("Följde förslaget", t.followed) + tile("Följde inte förslaget", t.not_followed) : "";
+  $("trackDims").innerHTML = t.evaluated ? `<h3>Per val</h3><div class="table-wrap"><table>
+    <tr><th></th><th>Följde</th><th>+/−</th><th>Följde inte</th><th>+/−</th></tr>
+    ${Object.entries(t.per_dimension).map(([d, g]) => `<tr><td>${DIM_LABEL[d]}</td>
+      <td>${g.followed.matches ? `${g.followed.ppm.toFixed(1)} p (${g.followed.matches})` : "–"}</td>
+      <td class="${g.followed.resid > 0 ? "pos" : g.followed.resid < 0 ? "neg" : ""}">${g.followed.matches ? signed(g.followed.resid) : ""}</td>
+      <td>${g.not_followed.matches ? `${g.not_followed.ppm.toFixed(1)} p (${g.not_followed.matches})` : "–"}</td>
+      <td class="${g.not_followed.resid > 0 ? "pos" : g.not_followed.resid < 0 ? "neg" : ""}">${g.not_followed.matches ? signed(g.not_followed.resid) : ""}</td></tr>`).join("")}
+    </table></div>` : "";
+  const brief = p => p ? [p.formation, svShort(p.tactic || "")].filter(Boolean).join(" · ") : "–";
+  $("trackTable").innerHTML = "<tr><th>Datum</th><th>Motståndare</th><th>Förslag</th><th>Du spelade</th><th>Följt</th><th>Res.</th></tr>" +
+    t.entries.map(e => {
+      const o = e.outcome;
+      return `<tr><td>${esc((e.date || "").slice(5, 10))}</td><td>${esc(e.opponent)} (${e.home ? "H" : "B"})</td>
+        <td>${esc(brief(e.prediction))}</td><td>${o ? esc(brief(o.played)) : "–"}</td>
+        <td>${o ? `${o.followed.length}/5` : "kommande"}</td>
+        ${o ? `<td class="${o.result}">${o.goals_for}–${o.goals_against}</td>` : "<td></td>"}</tr>`;
+    }).join("");
+}
+
+if (SNAPSHOT) { initSnapshot(SNAPSHOT); renderTracking(SNAPSHOT.tracking); }
 </script>
 </body>
 </html>

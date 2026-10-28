@@ -11,12 +11,14 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import analysis, league, matchlist
+from . import analysis, league, matchlist, tracking
 from .fetch import Client, FetchError
 from .web import STATIC, STATIC_FILES, scouting_json
 
 
-def snapshot(client: Client, my_team: int, progress=lambda text, done, total: None) -> dict:
+def snapshot(client: Client, my_team: int, progress=lambda text, done, total: None,
+             log_path: str | Path | None = None) -> dict:
+    """Ögonblicksbild för mobilsidan. log_path: fil för uppföljning av förslagen (valfri)."""
     index = league.collect(client, my_team, progress)
     index.save(league.index_path(client.cache_dir, my_team))
     matches = league.load_matches(client, index)
@@ -46,8 +48,18 @@ def snapshot(client: Client, my_team: int, progress=lambda text, done, total: No
          for t, s in ratings.strength.items()),
         key=lambda x: -x["strength"],
     )
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    track = None
+    if log_path:
+        entries = tracking.load(log_path)
+        tracking.evaluate(entries, matches, my_team, ratings)
+        tracking.record_predictions(entries, upcoming, reports, now)
+        tracking.save(log_path, entries)
+        track = tracking.summary(entries)
+
     return {
-        "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generated": now,
+        "tracking": track,
         "my_team": my_team,
         "my_team_name": index.teams.get(my_team),
         "series": index.series,

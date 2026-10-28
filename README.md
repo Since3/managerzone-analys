@@ -60,6 +60,8 @@ Arbetsflödet `.github/workflows/scouting.yml` körs på GitHubs servrar, så di
 - **Vad:** bygger/uppdaterar ligadatabasen (sparade matcher återanvänds mellan körningarna) och skapar en mobilsida med rapport och förslag för **alla lag i serien**. Kommande motståndare visas överst om listan över kommande matcher går att läsa.
 - **Var:** sidan publiceras med GitHub Pages. Lägg den på mobilens hemskärm för en app-ikon.
 
+- **Uppföljning:** inför varje ligamatch sparas förslaget mot nästa motståndare. När matchen spelats läses det ut vad du faktiskt spelade och hur det gick. Sidan visar poäng per match och målskillnad mot väntat när du följde förslaget (minst 4 av 5 val) jämfört med när du inte gjorde det, även per val. Historiken sparas på grenen `historik` (`prognoser.json`).
+
 Lokalt kan samma sida byggas med `python -m mzanalys publicera --mitt-lag <lag-ID> --ut site` och öppnas som fil (`site/index.html`).
 
 ## Scouting av nästa motståndare (kommandorad)

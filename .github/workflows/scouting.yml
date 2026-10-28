@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write  # uppföljningshistoriken sparas på grenen historik
   pages: write
   id-token: write
 
@@ -39,6 +39,15 @@ jobs:
           key: mz-data-${{ github.run_id }}
           restore-keys: mz-data-
 
+      - name: Hämta uppföljningshistorik
+        run: |
+          mkdir -p data
+          if git fetch --depth=1 origin historik; then
+            git show FETCH_HEAD:prognoser.json > data/prognoser.json || true
+          else
+            echo "Ingen historik ännu."
+          fi
+
       - name: Tester
         run: python -m unittest discover -s tests -t .
 
@@ -46,6 +55,26 @@ jobs:
         env:
           MZ_TEAM: ${{ vars.MZ_TEAM || '13659' }}
         run: python -m mzanalys publicera --mitt-lag "$MZ_TEAM" --ut site
+
+      - name: Spara uppföljningshistorik
+        if: hashFiles('data/prognoser.json') != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          if git fetch --depth=1 origin historik; then
+            git worktree add --detach /tmp/historik FETCH_HEAD
+          else
+            git worktree add --orphan -b historik /tmp/historik
+          fi
+          cp data/prognoser.json /tmp/historik/prognoser.json
+          cd /tmp/historik
+          git add prognoser.json
+          if git diff --cached --quiet; then
+            echo "Ingen ändring i historiken."
+          else
+            git commit -q -m "Uppföljning $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push origin HEAD:refs/heads/historik
+          fi
 
       - name: Spara matcher till nästa körning
         if: always() && hashFiles('data/**') != ''
