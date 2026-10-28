@@ -17,7 +17,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import matchlist
+from . import analysis, matchlist
 from .fetch import Client, FetchError
 from .stats import Match, StatsXmlError, parse_stats
 
@@ -160,30 +160,63 @@ def load_matches(client: Client, index: LeagueIndex) -> list[Match]:
     return out
 
 
+DEFAULT_CONVERSION = 0.3  # mål per skott på mål om serien saknar skottdata
+
+
+def shots_on_goal(team) -> int | None:
+    """Skott på mål ur lagets matchstatistik (Statistics@shotsOnGoal)."""
+    return analysis._shots(team)
+
+
 @dataclass
 class Ratings:
     strength: dict[int, float]  # väntad målskillnad per match mot ett genomsnittslag
     matches: dict[int, int]
     home_advantage: float  # väntad målskillnad för hemmalaget mellan två lika lag
+    shot_strength: dict[int, float] = field(default_factory=dict)  # samma sak för skott på mål
+    shot_home_advantage: float = 0.0
+    conversion: float = DEFAULT_CONVERSION  # mål per skott på mål i serien
 
     def expected_gd(self, team: int, opponent: int, home: bool) -> float:
         h = self.home_advantage
         return self.strength.get(team, 0.0) - self.strength.get(opponent, 0.0) + (h if home else -h)
 
+    def expected_sog(self, team: int, opponent: int, home: bool) -> float:
+        """Väntad skillnad i skott på mål (egna minus motståndarens)."""
+        h = self.shot_home_advantage
+        return self.shot_strength.get(team, 0.0) - self.shot_strength.get(opponent, 0.0) + (h if home else -h)
+
+
+def _strengths(rows: list[tuple[int, int, float]]) -> tuple[dict[int, float], dict[int, int], float]:
+    """Lagstyrkor ur (hemmalag, bortalag, hemmalagets differens).
+
+    Modell: differensen när A möter B på neutral plan = styrka A − styrka B. Mot ett
+    genomsnittligt schema blir styrkan lagets hemmajusterade differens per match, krympt
+    mot 0 med STRENGTH_PRIOR fiktiva matcher.
+    """
+    h = sum(d for _, _, d in rows) / len(rows) if rows else 0.0
+    total: dict[int, float] = {}
+    n: dict[int, int] = {}
+    for home, away, d in rows:
+        diff = d - h  # rensa bort hemmafördelen
+        for team, sign in ((home, 1), (away, -1)):
+            total[team] = total.get(team, 0.0) + sign * diff
+            n[team] = n.get(team, 0) + 1
+    return {t: total[t] / (n[t] + STRENGTH_PRIOR) for t in total}, n, h
+
 
 def ratings(matches: list[Match]) -> Ratings:
     played = [m for m in matches if all(t.goals is not None for t in m.teams)]
-    home_gd = [m.teams[0].goals - m.teams[1].goals for m in played]
-    h = sum(home_gd) / len(home_gd) if home_gd else 0.0
-    gd: dict[int, float] = {}
-    n: dict[int, int] = {}
+    strength, n, h = _strengths([(m.teams[0].id, m.teams[1].id, m.teams[0].goals - m.teams[1].goals)
+                                 for m in played])
+    shot_rows, goals, shots = [], 0, 0
     for m in played:
-        home, away = m.teams
-        diff = home.goals - away.goals - h  # rensa bort hemmafördelen
-        for team, sign in ((home.id, 1), (away.id, -1)):
-            gd[team] = gd.get(team, 0.0) + sign * diff
-            n[team] = n.get(team, 0) + 1
-    # Modell: målskillnad när A möter B på neutral plan = styrka A − styrka B. Mot ett
-    # genomsnittligt schema blir styrkan lagets hemmajusterade målskillnad per match.
-    strength = {t: gd[t] / (n[t] + STRENGTH_PRIOR) for t in gd}
-    return Ratings(strength=strength, matches=n, home_advantage=h)
+        home_sog, away_sog = (shots_on_goal(t) for t in m.teams)
+        if home_sog is None or away_sog is None:
+            continue
+        shot_rows.append((m.teams[0].id, m.teams[1].id, home_sog - away_sog))
+        goals += m.teams[0].goals + m.teams[1].goals
+        shots += home_sog + away_sog
+    shot_strength, _, shot_h = _strengths(shot_rows)
+    return Ratings(strength=strength, matches=n, home_advantage=h, shot_strength=shot_strength,
+                   shot_home_advantage=shot_h, conversion=goals / shots if shots else DEFAULT_CONVERSION)

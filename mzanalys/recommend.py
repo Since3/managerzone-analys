@@ -4,8 +4,12 @@ Underlag (evidens) är matcher där ett lag mötte antingen
 - motståndaren själv (direkt, vikt DIRECT_WEIGHT), eller
 - ett annat lag i ligan som spelade motståndarens väntade formation (liknande, vikt 1).
 
-Måttet är målskillnaden för laget som mötte dem, minus den väntade målskillnaden utifrån
-lagens styrka och hemmafördel (se league.ratings). Utan ligadatabas är det väntade 0.
+Måttet för en match är medelvärdet av två delar, båda jämförda med det väntade utifrån
+lagens styrka och hemmafördel (se league.ratings; utan ligadatabas är det väntade 0):
+- målskillnaden för laget som mötte dem,
+- skillnaden i skott på mål, omräknad till mål med seriens omvandlingsgrad.
+Skott är stabilare än mål, så måttet blir mindre beroende av tur. Saknas skottdata
+används bara målskillnaden.
 Grupper med lite underlag dras mot 0 (PRIOR_WEIGHT fiktiva matcher), och ett alternativ
 måste ha minst MIN_WEIGHT i vikt för att föreslås.
 
@@ -23,6 +27,8 @@ from dataclasses import dataclass, field
 
 from . import analysis, formation
 from .analysis import MatchSummary, TeamProfile
+
+DEFAULT_CONVERSION = 0.3  # mål per skott på mål utan ligadatabas
 
 DIRECT_WEIGHT = 2.0
 PRIOR_WEIGHT = 3.0
@@ -46,6 +52,20 @@ class Evidence:
     expected: float
     weight: float
     direct: bool
+    sog: int | None = None  # skillnad i skott på mål (egna minus motståndarens)
+    expected_sog: float = 0.0
+    conversion: float = DEFAULT_CONVERSION
+
+    @property
+    def shot_resid(self) -> float | None:
+        return None if self.sog is None else self.sog - self.expected_sog
+
+    @property
+    def value(self) -> float:
+        """Målskillnad mot väntat, i medel med skottskillnad mot väntat omräknad till mål."""
+        goals = self.gd - self.expected
+        shots = self.shot_resid
+        return goals if shots is None else (goals + self.conversion * shots) / 2
 
 
 @dataclass
@@ -58,9 +78,10 @@ class Option:
     losses: int
     ppm: float  # faktiska poäng per match
     resid: float  # målskillnad jämfört med väntat, viktat medel
-    score: float  # krympt resid
+    score: float  # krympt medel av måttet (mål och skott, se Evidence.value)
     weight: float
     combined: float = 0.0  # score plus tillägg för ditt lags historik
+    shots: float | None = None  # skott på mål jämfört med väntat, viktat medel
 
 
 @dataclass
@@ -69,6 +90,7 @@ class Choice:
     best: Option | None
     options: list[Option]
     own: dict[str, Option] = field(default_factory=dict)  # ditt lags historik per alternativ
+    confidence: str = "låg"  # säkerhet för just det här valet
 
     def runner_up(self) -> Option | None:
         others = [o for o in self.options if self.best and o.value != self.best.value]
@@ -82,7 +104,7 @@ class Recommendation:
     tactic: Choice
     playstyle: Choice
     aggression: Choice
-    confidence: str  # låg | medel | hög
+    confidence: str  # låg | medel | hög; säkerheten för antal backar (varje val har sin egen)
     direct_matches: int
     similar_matches: int
     uses_league: bool
@@ -111,19 +133,37 @@ def _values(s: MatchSummary) -> dict[str, str | None]:
             "playstyle": s.playstyle, "aggression": s.aggression}
 
 
+def _evidence(values, s: MatchSummary, team: int, opponent: int, home: bool, ratings,
+              weight: float, direct: bool) -> Evidence:
+    """Underlag ur en sammanfattning sett från laget team (mål och skott mot väntat)."""
+    sog = s.shots_for - s.shots_against if s.shots_for is not None and s.shots_against is not None else None
+    return Evidence(
+        values=values, result=s.result, gd=s.goals_for - s.goals_against,
+        expected=ratings.expected_gd(team, opponent, home) if ratings else 0.0,
+        weight=weight, direct=direct, sog=sog,
+        expected_sog=ratings.expected_sog(team, opponent, home) if ratings else 0.0,
+        conversion=ratings.conversion if ratings else DEFAULT_CONVERSION,
+    )
+
+
+def _flip(m: MatchSummary) -> MatchSummary:
+    """Samma match sedd från motståndarens sida (bara de fält underlaget använder)."""
+    from dataclasses import replace
+
+    return replace(m, home=not m.home, goals_for=m.goals_against, goals_against=m.goals_for,
+                   shots_for=m.shots_against, shots_against=m.shots_for)
+
+
 def direct_evidence(profile: TeamProfile, ratings=None) -> tuple[list[Evidence], list]:
     """Matcher mot motståndaren, sett från lagen som mötte dem."""
     rows, shapes = [], []
     for m in profile.matches:
         if m.goals_for is None or m.goals_against is None:
             continue
-        exp = ratings.expected_gd(m.opponent_id, profile.team_id, home=not m.home) if ratings else 0.0
-        rows.append(Evidence(
-            values={"backs": m.opponent_backs, "formation": m.opponent_formation, "tactic": m.opponent_tactic,
-                    "playstyle": m.opponent_playstyle, "aggression": m.opponent_aggression},
-            result=m.opponent_result, gd=m.goals_against - m.goals_for, expected=exp,
-            weight=DIRECT_WEIGHT, direct=True,
-        ))
+        values = {"backs": m.opponent_backs, "formation": m.opponent_formation, "tactic": m.opponent_tactic,
+                  "playstyle": m.opponent_playstyle, "aggression": m.opponent_aggression}
+        rows.append(_evidence(values, _flip(m), m.opponent_id, profile.team_id, not m.home, ratings,
+                              DIRECT_WEIGHT, True))
         shapes.append((m.opponent_formation, m.opponent_shape))
     return rows, shapes
 
@@ -145,9 +185,7 @@ def similar_evidence(league_matches, opponent_id: int, opponent_formation: str |
             s = analysis.summarize(match, challenger.id)
             if s.goals_for is None or s.goals_against is None:
                 continue
-            exp = ratings.expected_gd(challenger.id, faced.id, home=s.home) if ratings else 0.0
-            rows.append(Evidence(values=_values(s), result=s.result, gd=s.goals_for - s.goals_against,
-                                 expected=exp, weight=1.0, direct=False))
+            rows.append(_evidence(_values(s), s, challenger.id, faced.id, s.home, ratings, 1.0, False))
             shapes.append((s.formation, s.shape))
     return rows, shapes
 
@@ -158,9 +196,7 @@ def own_evidence(own: TeamProfile | None, ratings=None) -> list[Evidence]:
     for m in own.matches if own else []:
         if m.goals_for is None or m.goals_against is None:
             continue
-        exp = ratings.expected_gd(own.team_id, m.opponent_id, home=m.home) if ratings else 0.0
-        rows.append(Evidence(values=_values(m), result=m.result, gd=m.goals_for - m.goals_against,
-                             expected=exp, weight=1.0, direct=False))
+        rows.append(_evidence(_values(m), m, own.team_id, m.opponent_id, m.home, ratings, 1.0, False))
     return rows
 
 
@@ -173,14 +209,18 @@ def _options(rows: list[Evidence], dim: str) -> list[Option]:
     out = []
     for value, rs in groups.items():
         w = sum(r.weight for r in rs)
-        weighted = sum(r.weight * (r.gd - r.expected) for r in rs)
+        goals = sum(r.weight * (r.gd - r.expected) for r in rs)
+        weighted = sum(r.weight * r.value for r in rs)
+        with_shots = [r for r in rs if r.shot_resid is not None]
+        shot_w = sum(r.weight for r in with_shots)
         out.append(Option(
             value=value, matches=len(rs), direct=sum(1 for r in rs if r.direct),
             wins=sum(1 for r in rs if r.result == "V"), draws=sum(1 for r in rs if r.result == "O"),
             losses=sum(1 for r in rs if r.result == "F"),
             ppm=sum(POINTS.get(r.result, 0) for r in rs) / len(rs),
-            resid=weighted / w, score=weighted / (w + PRIOR_WEIGHT), weight=w,
+            resid=goals / w, score=weighted / (w + PRIOR_WEIGHT), weight=w,
             combined=weighted / (w + PRIOR_WEIGHT),
+            shots=sum(r.weight * r.shot_resid for r in with_shots) / shot_w if shot_w else None,
         ))
     out.sort(key=lambda o: (-o.score, -o.weight))
     return out
@@ -193,7 +233,8 @@ def _choice(label: str, rows: list[Evidence], dim: str, own_rows: list[Evidence]
         o.combined = o.score + (OWN_WEIGHT * own[o.value].score if o.value in own else 0.0)
     solid = [o for o in options if o.weight >= MIN_WEIGHT]
     pool = sorted(solid or options, key=lambda o: (-o.combined, -o.weight))
-    return Choice(label, pool[0] if pool else None, options, own)
+    best = pool[0] if pool else None
+    return Choice(label, best, options, own, _confidence(best))
 
 
 def _signed(x: float) -> str:
@@ -211,7 +252,8 @@ def _describe(o: Option, name: str) -> str:
         where = f"{_n(o.matches)}, varav {o.direct} mot {name}"
     else:
         where = f"{_n(o.matches)} mot lag med samma formation"
-    return f"{_signed(o.resid)} mål/match mot väntat ({where}; {o.wins}V {o.draws}O {o.losses}F)"
+    shots = f" och {_signed(o.shots)} skott på mål/match" if o.shots is not None else ""
+    return f"{_signed(o.resid)} mål/match{shots} mot väntat ({where}; {o.wins}V {o.draws}O {o.losses}F)"
 
 
 def _confidence(best: Option | None) -> str:
@@ -250,13 +292,14 @@ def recommend(profile: TeamProfile, opponent_home: bool | None = None,
     form.options, form.own = all_forms.options, all_forms.own
     if form.best:
         form.best = next(o for o in form.options if o.value == form.best.value)
+        form.confidence = _confidence(form.best)
 
     rec = Recommendation(
         backs=backs, formation=form,
         tactic=_choice("Taktik", rows, "tactic", own_rows),
         playstyle=_choice("Spelstil", rows, "playstyle", own_rows),
         aggression=_choice("Aggressivitet", rows, "aggression", own_rows),
-        confidence=_confidence(backs.best),
+        confidence=backs.confidence,
         direct_matches=sum(1 for r in rows if r.direct),
         similar_matches=len(sim_rows),
         uses_league=ratings is not None,

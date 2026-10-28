@@ -63,6 +63,9 @@ button:disabled { opacity: .5; cursor: default; }
 .badge { padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
 .badge.hög { background: var(--good); color: #fff; } .badge.medel { background: var(--warn); color: #fff; }
 .badge.låg { background: var(--muted); color: #fff; }
+.conf { font-size: 10px; font-weight: 700; text-transform: uppercase; margin-left: 4px; padding: 1px 5px; border-radius: 4px; color: #fff; }
+.conf.hög { background: var(--good); } .conf.medel { background: var(--warn); } .conf.låg { background: var(--muted); }
+@media (max-width: 480px) { .narrow-hide { display: none; } }
 ul { margin: 6px 0; padding-left: 20px; } li { margin: 3px 0; }
 .pitches { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .pitch-box { text-align: center; } .pitch-box svg { width: 100%; max-width: 260px; height: auto; }
@@ -401,12 +404,13 @@ function render(d, opponentHome, log, isMe = false) {
 
   const rec = d.recommendation;
   const [backs, form, tactic, playstyle, aggression] = rec.choices;
-  $("confidence").textContent = `säkerhet: ${rec.confidence}`;
-  $("confidence").className = `badge ${rec.confidence}`;
+  $("confidence").textContent = `säkerhet: ${form.confidence}`;
+  $("confidence").className = `badge ${form.confidence}`;
+  $("confidence").title = "Säkerheten för formationen. Varje övrigt val har sin egen säkerhet nedan.";
   $("recFormation").textContent = form.best ? form.best.value : "–";
   const chipLabel = { "Antal backar": "", "Taktik": "", "Spelstil": "Spelstil ", "Aggressivitet": "Aggressivitet " };
   $("recChips").innerHTML = [backs, tactic, playstyle, aggression].filter(c => c.best)
-    .map(c => `<span class="chip">${esc((chipLabel[c.label] ?? "") + sv(c.best.value).toLowerCase())}</span>`).join("");
+    .map(c => `<span class="chip" title="säkerhet: ${c.confidence}">${esc((chipLabel[c.label] ?? "") + sv(c.best.value).toLowerCase())}<span class="conf ${c.confidence}">${c.confidence}</span></span>`).join("");
   $("recReasons").innerHTML = rec.reasons.map(r => `<li>${bold(svText(r))}</li>`).join("");
   $("recAvoid").innerHTML = rec.avoid.map(r => `<li>${esc(svText(r))}</li>`).join("");
   $("recAvoidWrap").classList.toggle("hidden", !rec.avoid.length);
@@ -426,19 +430,21 @@ function render(d, opponentHome, log, isMe = false) {
 
   $("evidenceNote").innerHTML = `${rec.direct_matches} matcher mot ${esc(d.name)}` +
     (rec.uses_league ? ` och ${rec.similar_matches} ligamatcher mot andra lag som spelat ${esc(rec.opponent_formation || "samma formation")}
-      (matcher mot ${esc(d.name)} väger dubbelt). <b>+/− mot väntat</b> är målskillnaden per match jämfört med vad lagens styrka
-      och hemmaplan gav anledning att vänta.`
-      : `. Bygg ligadatabasen för ett större underlag och hänsyn till lagens styrka. <b>+/− mot väntat</b> är här
-      målskillnaden per match.`) + " V betyder att laget som mötte dem vann." +
+      (matcher mot ${esc(d.name)} väger dubbelt). <b>Mål</b> och <b>Skott</b> är skillnaden i mål respektive skott på mål
+      per match, jämfört med vad lagens styrka och hemmaplan gav anledning att vänta.`
+      : `. Bygg ligadatabasen för ett större underlag och hänsyn till lagens styrka. <b>Mål</b> och <b>Skott</b> är här
+      skillnaden i mål respektive skott på mål per match.`) +
+    " Förslaget väger mål och skott lika, eftersom skott är mindre beroende av tur. V-O-F räknas för laget som mötte dem." +
     " <b>Matcher</b> anger antal matcher, och inom parentes hur många av dem som var mot motståndaren." +
     (rec.own_matches ? ` Kolumnen <b>Ditt lag</b> visar hur ${esc(rec.own_name || "ditt lag")} har gått med samma val
       (+/− mot väntat och antal matcher) i ${rec.own_matches} ligamatcher; det väger in med halv vikt i förslaget.` : "");
   $("choiceTables").innerHTML = rec.choices.map(c => `
     <div><h3>${esc(c.label)}</h3><div class="table-wrap"><table>
-      <tr><th></th><th title="antal matcher (varav mot dem)">Matcher</th><th>V-O-F</th><th title="målskillnad per match mot väntat">+/−</th>${rec.own_matches ? "<th>Ditt lag</th>" : ""}</tr>
+      <tr><th>${c.confidence ? `<span class="conf ${c.confidence}" style="margin:0">${c.confidence}</span>` : ""}</th><th title="antal matcher (varav mot dem)">Matcher</th><th class="narrow-hide">V-O-F</th><th title="målskillnad per match mot väntat">Mål</th><th title="skott på mål per match mot väntat">Skott</th>${rec.own_matches ? "<th>Ditt lag</th>" : ""}</tr>
       ${c.options.map(o => { const mine = (c.own || {})[o.value]; const cls = x => x > 0 ? "pos" : x < 0 ? "neg" : "";
         return `<tr><td>${esc(svShort(o.value))}</td><td>${o.matches}${o.direct && o.direct < o.matches ? ` (${o.direct})` : ""}</td>
-        <td>${o.wins}-${o.draws}-${o.losses}</td><td class="${cls(o.resid)}">${signed(o.resid)}</td>
+        <td class="narrow-hide">${o.wins}-${o.draws}-${o.losses}</td><td class="${cls(o.resid)}">${signed(o.resid)}</td>
+        <td class="${o.shots == null ? "" : cls(o.shots)}">${o.shots == null ? "–" : signed(o.shots)}</td>
         ${rec.own_matches ? `<td class="${mine ? cls(mine.resid) : ""}">${mine ? `${signed(mine.resid)} (${mine.matches})` : "–"}</td>` : ""}</tr>`; }).join("")}
     </table></div></div>`).join("");
   $("strengthCard").classList.toggle("hidden", !d.strengths);
