@@ -68,6 +68,7 @@ class Team:
     manager: str | None
     goals: int | None
     statistics: dict[str, str]
+    series: str | None = None  # MetaData@series_name, t.ex. 'div1.1'
 
 
 @dataclass
@@ -175,6 +176,7 @@ def parse_stats(text: str) -> Match:
                 playstyle=t.get("playstyle"),
                 aggression=t.get("aggression"),
                 manager=meta.get("manager") if meta is not None else None,
+                series=meta.get("series_name") if meta is not None else None,
                 goals=_int(statistics.get("goals")),
                 statistics=statistics,
             )

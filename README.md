@@ -36,7 +36,19 @@ Appen öppnas i webbläsaren på `http://127.0.0.1:8765/` och körs bara på din
 
 Hittar appen inga kommande matcher kan du ange motståndarens lag-ID direkt under **Analysera ett lag direkt**.
 
-**Hur förslaget räknas fram:** Motståndarens matcher grupperas efter vad laget som mötte dem använde, och varje grupp får poäng per match. Små grupper dras mot genomsnittet (två fiktiva genomsnittsmatcher), och ett alternativ måste ha minst två matcher bakom sig för att föreslås. Förslaget bygger på historiska resultat, inte på spelmotorn. Spelarkvalitet och motståndarnas styrka påverkar också utfallet.
+### Ligadatabas (rekommenderas)
+
+Klicka **Bygg / uppdatera ligadatabas** i appen, eller kör `python -m mzanalys liga --mitt-lag <ditt lag-ID>`. Verktyget hämtar då alla ligamatcher i din serie den här säsongen:
+
+1. Dina ligamatcher ger seriens lag. Säsongen avgränsas av att en series alla ligamatcher har match-ID nära varandra.
+2. Varje lags ligamatcher i samma säsong hämtas. Matcher från andra serier (enligt matchfilens serienamn) sorteras bort.
+3. Första gången tar det en stund (några sekunder per match). Därefter hämtas bara nya matcher. Kör gärna en uppdatering efter varje omgång.
+
+Med ligadatabasen blir förslagen mer tillförlitliga på två sätt:
+- **Större underlag:** även matcher där andra lag i serien mötte ett lag med **samma formation** som din motståndare räknas med. Matcher mot motståndaren själv väger dubbelt.
+- **Hänsyn till lagens styrka:** varje lags styrka räknas fram ur seriens resultat. Måttet blir målskillnad **jämfört med det väntade**, så att en vinst för ett starkt lag väger mindre än en vinst för ett svagt.
+
+**Hur förslaget räknas fram:** Matcherna grupperas efter vad laget som mötte motståndaren använde (antal backar, formation, taktik, spelstil, aggressivitet). Varje grupp får ett värde: målskillnad per match jämfört med det väntade (utan ligadatabas är det väntade 0). Små grupper dras mot noll (tre fiktiva matcher), och ett alternativ måste ha minst vikt 4 bakom sig för att föreslås: två matcher mot motståndaren, eller fyra mot lag med samma formation. Förslaget bygger på historiska resultat, inte på spelmotorn. Spelarkvalitet och motståndarnas styrka påverkar också utfallet.
 
 ## Scouting av nästa motståndare (kommandorad)
 

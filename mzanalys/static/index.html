@@ -64,6 +64,8 @@ details { margin-top: 8px; } summary { cursor: pointer; font-weight: 600; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 760px) { .grid2, .pitches { grid-template-columns: 1fr; } }
 .hidden { display: none; }
+tr.highlight td { background: var(--accent-soft); font-weight: 600; }
+td.pos { color: var(--good); font-weight: 600; } td.neg { color: var(--bad); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -90,6 +92,17 @@ details { margin-top: 8px; } summary { cursor: pointer; font-weight: 600; }
         <button id="scoutManual" class="secondary">Analysera</button>
       </div>
     </details>
+  </section>
+
+  <section class="card">
+    <h2>Ligadatabas</h2>
+    <p class="muted">Hämtar alla ligamatcher i din serie den här säsongen. Förslagen bygger då även på matcher mot
+      andra lag som spelar samma formation som motståndaren, och tar hänsyn till lagens styrka.
+      Första gången tar det en stund (några sekunder per match); sedan hämtas bara nya matcher.</p>
+    <div class="row">
+      <button id="buildLeague" class="secondary">Bygg / uppdatera ligadatabas</button>
+      <span id="leagueStatus" class="muted"></span>
+    </div>
   </section>
 
   <section id="progressCard" class="card hidden">
@@ -132,9 +145,15 @@ details { margin-top: 8px; } summary { cursor: pointer; font-weight: 600; }
     </section>
 
     <section class="card">
-      <h2>Resultat för lagen som mött dem</h2>
-      <p class="muted">V betyder att laget som mötte dem vann. Sorterat efter justerade poäng per match.</p>
+      <h2>Underlag för förslaget</h2>
+      <p class="muted" id="evidenceNote"></p>
       <div id="choiceTables" class="grid2"></div>
+    </section>
+
+    <section class="card hidden" id="strengthCard">
+      <h2>Lagstyrka i serien</h2>
+      <p class="muted">Väntad målskillnad per match mot ett genomsnittslag, räknad ur ligadatabasen.</p>
+      <div class="table-wrap"><table id="strengths"></table></div>
     </section>
 
     <section class="card grid2">
@@ -182,7 +201,64 @@ async function api(path, opts) {
   return data;
 }
 
+let polling = null;
 $("myTeam").value = store.get("myTeam") || "";
+const myTeam = () => (/^\d+$/.test($("myTeam").value.trim()) ? Number($("myTeam").value.trim()) : null);
+const signed = x => (x > 0 ? "+" : x < 0 ? "−" : "±") + Math.abs(x).toFixed(1);
+
+async function leagueInfo() {
+  const team = myTeam();
+  if (!team) { $("leagueStatus").textContent = "Ange ditt lag-ID först."; return; }
+  try {
+    const info = await api(`/api/league?team=${team}`);
+    $("leagueStatus").textContent = info.exists
+      ? `${info.matches} matcher, ${info.teams} lag${info.series ? ` (${info.series})` : ""}.`
+      : "Ingen ligadatabas ännu.";
+  } catch (e) { $("leagueStatus").textContent = e.message; }
+}
+leagueInfo();
+$("myTeam").addEventListener("change", () => { store.set("myTeam", $("myTeam").value.trim()); leagueInfo(); });
+
+function runJob(job, title, onDone) {
+  clearInterval(polling);
+  $("progressCard").classList.remove("hidden");
+  $("progressTitle").textContent = title;
+  $("progressBar").style.width = "0";
+  polling = setInterval(async () => {
+    const j = await api(`/api/job?id=${job}`).catch(e => ({ status: "fel", error: e.message }));
+    $("progressBar").style.width = j.total ? `${Math.round(100 * j.done / j.total)}%` : "0";
+    $("progressText").textContent = j.status === "klar" ? "Klart" :
+      `${j.status}${j.total ? ` (${j.done} av ${j.total})` : ""}`;
+    if (j.status === "fel") {
+      clearInterval(polling);
+      $("progressText").innerHTML = `<span class="error">${esc(j.error)}</span>`;
+    } else if (j.status === "klar") {
+      clearInterval(polling);
+      $("progressCard").classList.add("hidden");
+      onDone(j);
+    }
+  }, 1000);
+}
+
+$("buildLeague").onclick = async () => {
+  const team = myTeam();
+  if (!team) { $("leagueStatus").textContent = "Ange ditt lag-ID först."; return; }
+  store.set("myTeam", String(team));
+  $("buildLeague").disabled = true;
+  try {
+    const { job } = await api("/api/league", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ my_team: team }),
+    });
+    runJob(job, "Bygger ligadatabas…", j => {
+      $("buildLeague").disabled = false;
+      leagueInfo();
+      if (j.log && j.log.length) $("leagueStatus").textContent += ` Hoppade över ${j.log.length} (t.ex. walkover).`;
+    });
+  } catch (e) {
+    $("buildLeague").disabled = false;
+    $("leagueStatus").innerHTML = `<span class="error">${esc(e.message)}</span>`;
+  }
+};
 
 $("loadUpcoming").onclick = async () => {
   const team = $("myTeam").value.trim();
@@ -219,33 +295,16 @@ $("scoutManual").onclick = () => {
   if (/^\d+$/.test(team)) scout(Number(team), $("oppHome").checked);
 };
 
-let polling = null;
 async function scout(team, opponentHome) {
-  clearInterval(polling);
   $("report").classList.add("hidden");
-  $("progressCard").classList.remove("hidden");
-  $("progressTitle").textContent = "Hämtar motståndarens ligamatcher…";
-  $("progressBar").style.width = "0";
-  $("progressText").textContent = "Varje match hämtas med några sekunders mellanrum. Sparade matcher går snabbt.";
   try {
     const { job } = await api("/api/scout", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ team, opponent_home: opponentHome }),
+      body: JSON.stringify({ team, opponent_home: opponentHome, my_team: myTeam() }),
     });
-    polling = setInterval(async () => {
-      const j = await api(`/api/job?id=${job}`).catch(e => ({ status: "fel", error: e.message }));
-      if (j.total) $("progressBar").style.width = `${Math.round(100 * j.done / j.total)}%`;
-      $("progressTitle").textContent = j.status === "klar" ? "Klart" : `Status: ${j.status}`;
-      if (j.status === "fel") {
-        clearInterval(polling);
-        $("progressText").innerHTML = `<span class="error">${esc(j.error)}</span>`;
-      } else if (j.status === "klar") {
-        clearInterval(polling);
-        $("progressCard").classList.add("hidden");
-        render(j.result, opponentHome, j.log);
-      }
-    }, 1000);
+    runJob(job, "Hämtar motståndarens ligamatcher…", j => render(j.result, opponentHome, j.log));
   } catch (e) {
+    $("progressCard").classList.remove("hidden");
     $("progressText").innerHTML = `<span class="error">${esc(e.message)}</span>`;
   }
 }
@@ -299,12 +358,22 @@ function render(d, opponentHome, log) {
       rec.shape.map((p, i) => `<tr><td>${i + 1}</td><td>${p.editor_x}</td><td>${p.editor_y}</td></tr>`).join("")
     : "";
 
+  $("evidenceNote").innerHTML = `${rec.direct_matches} matcher mot ${esc(d.name)}` +
+    (rec.uses_league ? ` och ${rec.similar_matches} ligamatcher mot andra lag som spelat ${esc(rec.opponent_formation || "samma formation")}
+      (matcher mot ${esc(d.name)} väger dubbelt). <b>+/− mot väntat</b> är målskillnaden per match jämfört med vad lagens styrka
+      och hemmaplan gav anledning att vänta.`
+      : `. Bygg ligadatabasen för ett större underlag och hänsyn till lagens styrka. <b>+/− mot väntat</b> är här
+      målskillnaden per match.`) + " V betyder att laget som mötte dem vann.";
   $("choiceTables").innerHTML = rec.choices.map(c => `
     <div><h3>${esc(c.label)}</h3><div class="table-wrap"><table>
-      <tr><th></th><th>Matcher</th><th>V</th><th>O</th><th>F</th><th>P/match</th></tr>
-      ${c.options.map(o => `<tr><td>${esc(sv(o.value))}</td><td>${o.matches}</td><td>${o.wins}</td><td>${o.draws}</td>
-        <td>${o.losses}</td><td>${o.ppm.toFixed(1)}</td></tr>`).join("")}
+      <tr><th></th><th>Matcher</th><th>Mot dem</th><th>V</th><th>O</th><th>F</th><th>+/− mot väntat</th></tr>
+      ${c.options.map(o => `<tr><td>${esc(sv(o.value))}</td><td>${o.matches}</td><td>${o.direct}</td><td>${o.wins}</td>
+        <td>${o.draws}</td><td>${o.losses}</td><td class="${o.resid > 0 ? "pos" : o.resid < 0 ? "neg" : ""}">${signed(o.resid)}</td></tr>`).join("")}
     </table></div></div>`).join("");
+  $("strengthCard").classList.toggle("hidden", !d.strengths);
+  $("strengths").innerHTML = d.strengths ? "<tr><th>#</th><th>Lag</th><th>Styrka</th><th>Matcher</th></tr>" +
+    d.strengths.map((s, i) => `<tr class="${s.highlight ? "highlight" : ""}"><td>${i + 1}</td><td>${esc(s.name)}</td>
+      <td>${signed(s.strength)}</td><td>${s.matches}</td></tr>`).join("") : "";
 
   const sideName = { total: "Totalt", home: "Hemma", away: "Borta" };
   $("likely").innerHTML = Object.entries(d.likely).filter(([, v]) => Object.keys(v).length).map(([side, v]) => {

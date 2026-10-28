@@ -170,6 +170,31 @@ def cmd_motstandare(args) -> int:
     return 0 if profile.matches else 1
 
 
+def cmd_liga(args) -> int:
+    from . import league
+
+    client = _client(args)
+
+    def progress(text, done, total):
+        if total:
+            print(f"  {text}: {done}/{total}".ljust(70), end="\r", flush=True)
+
+    try:
+        index = league.collect(client, args.mitt_lag, progress)
+    except (FetchError, ValueError) as e:
+        print(f"\nKunde inte bygga ligadatabasen: {e}", file=sys.stderr)
+        return 1
+    index.save(league.index_path(args.cache, args.mitt_lag))
+    print(f"\nLigadatabas: {len(index.mids)} matcher, {len(index.teams)} lag"
+          + (f", serie {index.series}" if index.series else "") + ".")
+    if index.failed:
+        print(f"{len(index.failed)} hoppades över (t.ex. walkover).")
+    ratings = league.ratings(league.load_matches(client, index))
+    for i, (tid, s) in enumerate(sorted(ratings.strength.items(), key=lambda kv: -kv[1]), 1):
+        print(f"  {i:2}. {index.teams.get(tid, tid):30} {s:+.2f}")
+    return 0
+
+
 def cmd_webb(args) -> int:
     from . import web
 
@@ -242,6 +267,10 @@ def main(argv: list[str] | None = None) -> int:
     o.add_argument("--session", action="store_true", help="använd sajtens lista med din session (MZ_PHPSESSID)")
     o.add_argument("--ut", help="filnamn för rapporten (standard scouting-<lag-ID>.md)")
     o.set_defaults(func=cmd_motstandare)
+
+    lg = sub.add_parser("liga", help="bygg eller uppdatera ligadatabasen för din serie")
+    lg.add_argument("--mitt-lag", type=int, required=True, help="ditt lag-ID")
+    lg.set_defaults(func=cmd_liga)
 
     w = sub.add_parser("webb", help="starta webbappen i din webbläsare")
     w.add_argument("--port", type=int, default=8765)

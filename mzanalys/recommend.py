@@ -1,37 +1,60 @@
-"""Förslag på upplägg mot en motståndare, utifrån hur andra lag har gått mot dem.
+"""Förslag på upplägg mot en motståndare.
 
-Metod: för varje egenskap (antal backar, formation, taktik, spelstil, aggressivitet)
-grupperas motståndarens matcher efter vad laget som mötte dem använde. Varje grupp får
-poäng per match sett från det mötande lagets sida. Små grupper dras mot genomsnittet
-(empirisk Bayes-krympning med PRIOR_WEIGHT fiktiva matcher), så att en enstaka vinst
-inte väger lika tungt som ett mönster över flera matcher.
+Underlag (evidens) är matcher där ett lag mötte antingen
+- motståndaren själv (direkt, vikt DIRECT_WEIGHT), eller
+- ett annat lag i ligan som spelade motståndarens väntade formation (liknande, vikt 1).
 
-Förslaget bygger på historiska resultat, inte på spelmotorn. Spelarnas kvalitet
-påverkar utfallet minst lika mycket.
+Måttet är målskillnaden för laget som mötte dem, minus den väntade målskillnaden utifrån
+lagens styrka och hemmafördel (se league.ratings). Utan ligadatabas är det väntade 0.
+Grupper med lite underlag dras mot 0 (PRIOR_WEIGHT fiktiva matcher), och ett alternativ
+måste ha minst MIN_WEIGHT i vikt för att föreslås.
+
+Förslaget bygger på historiska resultat, inte på spelmotorn. Spelarnas kvalitet påverkar
+också utfallet.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from . import formation
+from . import analysis, formation
 from .analysis import MatchSummary, TeamProfile
 
-PRIOR_WEIGHT = 2.0
-MIN_MATCHES = 2  # ett alternativ föreslås bara om det har minst så många matcher bakom sig
+DIRECT_WEIGHT = 2.0
+PRIOR_WEIGHT = 3.0
+MIN_WEIGHT = 4.0  # t.ex. två direkta matcher eller fyra liknande
 
-POINTS = {"V": 3, "O": 1, "F": 0}
+DIMENSIONS = (
+    ("backs", "Antal backar"),
+    ("formation", "Formation"),
+    ("tactic", "Taktik"),
+    ("playstyle", "Spelstil"),
+    ("aggression", "Aggressivitet"),
+)
+
+
+@dataclass
+class Evidence:
+    values: dict[str, str | None]  # det mötande lagets val per dimension
+    result: str  # V/O/F för det mötande laget
+    gd: int
+    expected: float
+    weight: float
+    direct: bool
 
 
 @dataclass
 class Option:
     value: str
     matches: int
+    direct: int
     wins: int
     draws: int
     losses: int
-    ppm: float  # faktiska poäng per match för laget som mötte dem
-    score: float  # krympt poäng per match
+    ppm: float  # faktiska poäng per match
+    resid: float  # målskillnad jämfört med väntat, viktat medel
+    score: float  # krympt resid
+    weight: float
 
 
 @dataclass
@@ -47,129 +70,187 @@ class Choice:
 
 @dataclass
 class Recommendation:
-    baseline: float  # poäng per match för motståndarnas motståndare i snitt
     backs: Choice
     formation: Choice
     tactic: Choice
     playstyle: Choice
     aggression: Choice
     confidence: str  # låg | medel | hög
+    direct_matches: int
+    similar_matches: int
+    uses_league: bool
     reasons: list[str] = field(default_factory=list)
     avoid: list[str] = field(default_factory=list)
-    shape: list[tuple[float, float]] | None = None  # föreslagen formation, genomsnittliga positioner
+    shape: list[tuple[float, float]] | None = None
     opponent_formation: str | None = None
     opponent_shape: list[tuple[float, float]] | None = None
 
+    @property
+    def choices(self) -> list[Choice]:
+        return [self.backs, self.formation, self.tactic, self.playstyle, self.aggression]
 
-def _options(matches: list[MatchSummary], key, baseline: float) -> list[Option]:
-    groups: dict[str, list[str]] = {}
-    for m in matches:
-        value = key(m)
-        if value:
-            groups.setdefault(value, []).append(m.opponent_result)
+
+POINTS = {"V": 3, "O": 1, "F": 0}
+
+
+def _backs(shape: formation.Formation | None) -> str | None:
+    return f"{shape.zones.split('-')[0]} backar" if shape else None
+
+
+def _values(s: MatchSummary) -> dict[str, str | None]:
+    """Det analyserade lagets val i en sammanfattning."""
+    return {"backs": _backs(s.shape), "formation": s.formation, "tactic": s.tactic,
+            "playstyle": s.playstyle, "aggression": s.aggression}
+
+
+def direct_evidence(profile: TeamProfile, ratings=None) -> tuple[list[Evidence], list]:
+    """Matcher mot motståndaren, sett från lagen som mötte dem."""
+    rows, shapes = [], []
+    for m in profile.matches:
+        if m.goals_for is None or m.goals_against is None:
+            continue
+        exp = ratings.expected_gd(m.opponent_id, profile.team_id, home=not m.home) if ratings else 0.0
+        rows.append(Evidence(
+            values={"backs": m.opponent_backs, "formation": m.opponent_formation, "tactic": m.opponent_tactic,
+                    "playstyle": m.opponent_playstyle, "aggression": m.opponent_aggression},
+            result=m.opponent_result, gd=m.goals_against - m.goals_for, expected=exp,
+            weight=DIRECT_WEIGHT, direct=True,
+        ))
+        shapes.append((m.opponent_formation, m.opponent_shape))
+    return rows, shapes
+
+
+def similar_evidence(league_matches, opponent_id: int, opponent_formation: str | None,
+                     ratings=None) -> tuple[list[Evidence], list]:
+    """Ligamatcher där ett annat lag spelade samma formation som motståndaren väntas spela."""
+    rows, shapes = [], []
+    if not opponent_formation:
+        return rows, shapes
+    for match in league_matches:
+        if any(t.id == opponent_id for t in match.teams):
+            continue
+        for faced in match.teams:
+            faced_f = formation.derive(match.starters(faced.id))
+            if not faced_f or faced_f.lines != opponent_formation:
+                continue
+            challenger = match.opponent(faced.id)
+            s = analysis.summarize(match, challenger.id)
+            if s.goals_for is None or s.goals_against is None:
+                continue
+            exp = ratings.expected_gd(challenger.id, faced.id, home=s.home) if ratings else 0.0
+            rows.append(Evidence(values=_values(s), result=s.result, gd=s.goals_for - s.goals_against,
+                                 expected=exp, weight=1.0, direct=False))
+            shapes.append((s.formation, s.shape))
+    return rows, shapes
+
+
+def _options(rows: list[Evidence], dim: str) -> list[Option]:
+    groups: dict[str, list[Evidence]] = {}
+    for r in rows:
+        v = r.values.get(dim)
+        if v:
+            groups.setdefault(v, []).append(r)
     out = []
-    for value, results in groups.items():
-        n = len(results)
-        pts = sum(POINTS.get(r, 0) for r in results)
-        out.append(
-            Option(
-                value=value,
-                matches=n,
-                wins=results.count("V"),
-                draws=results.count("O"),
-                losses=results.count("F"),
-                ppm=pts / n,
-                score=(pts + PRIOR_WEIGHT * baseline) / (n + PRIOR_WEIGHT),
-            )
-        )
-    out.sort(key=lambda o: (-o.score, -o.matches))
+    for value, rs in groups.items():
+        w = sum(r.weight for r in rs)
+        weighted = sum(r.weight * (r.gd - r.expected) for r in rs)
+        out.append(Option(
+            value=value, matches=len(rs), direct=sum(1 for r in rs if r.direct),
+            wins=sum(1 for r in rs if r.result == "V"), draws=sum(1 for r in rs if r.result == "O"),
+            losses=sum(1 for r in rs if r.result == "F"),
+            ppm=sum(POINTS.get(r.result, 0) for r in rs) / len(rs),
+            resid=weighted / w, score=weighted / (w + PRIOR_WEIGHT), weight=w,
+        ))
+    out.sort(key=lambda o: (-o.score, -o.weight))
     return out
 
 
-def _best(options: list[Option]) -> Option | None:
-    """Högst justerad poäng bland alternativ med tillräckligt underlag, annars bland alla."""
-    solid = [o for o in options if o.matches >= MIN_MATCHES]
+def _choice(label: str, rows: list[Evidence], dim: str) -> Choice:
+    options = _options(rows, dim)
+    solid = [o for o in options if o.weight >= MIN_WEIGHT]
     pool = solid or options
-    return pool[0] if pool else None
+    return Choice(label, pool[0] if pool else None, options)
 
 
-def _choice(label: str, matches, key, baseline) -> Choice:
-    options = _options(matches, key, baseline)
-    return Choice(label, _best(options), options)
+def _signed(x: float) -> str:
+    return f"{x:+.1f}".replace("-", "−")
 
 
-def _record(o: Option) -> str:
-    return f"{o.wins}V {o.draws}O {o.losses}F"
+def _describe(o: Option, name: str) -> str:
+    if o.direct == o.matches:
+        where = f"{o.matches} matcher mot {name}"
+    elif o.direct:
+        where = f"{o.matches} matcher, varav {o.direct} mot {name}"
+    else:
+        where = f"{o.matches} matcher mot lag med samma formation"
+    return f"{_signed(o.resid)} mål/match mot väntat ({where}; {o.wins}V {o.draws}O {o.losses}F)"
 
 
-def _confidence(choice: Choice, baseline: float, total: int) -> str:
-    best = choice.best
-    if not best or total < 4:
+def _confidence(best: Option | None) -> str:
+    if not best:
         return "låg"
-    lift = best.score - baseline
-    if best.matches >= 4 and lift >= 0.5:
+    if best.weight >= 10 and best.score >= 0.4:
         return "hög"
-    if best.matches >= 2 and lift >= 0.25:
+    if best.weight >= 5 and best.score >= 0.2:
         return "medel"
     return "låg"
 
 
-def recommend(profile: TeamProfile, opponent_home: bool | None = None) -> Recommendation | None:
+def recommend(profile: TeamProfile, opponent_home: bool | None = None,
+              league_matches=None, ratings=None) -> Recommendation | None:
     """Förslag mot laget i profilen.
 
-    opponent_home: True om motståndaren spelar hemma i den kommande matchen. Används för
-    att visa deras väntade formation (hemma- respektive bortaupplägg).
+    opponent_home: True om motståndaren spelar hemma i den kommande matchen.
+    league_matches/ratings: ligadatabasen (league.load_matches / league.ratings), valfri.
     """
-    ms = profile.matches
-    if not ms:
+    if not profile.matches:
         return None
-    baseline = sum(POINTS.get(m.opponent_result, 0) for m in ms) / len(ms)
+    likely = profile.most_likely(home=opponent_home) or profile.most_likely()
+    opp_formation = likely.get("formation", (None,))[0]
 
-    backs = _choice("Antal backar", ms, lambda m: m.opponent_backs, baseline)
-    # Formation väljs inom det bästa antalet backar, så att förslaget hänger ihop.
-    within = [m for m in ms if backs.best and m.opponent_backs == backs.best.value] or ms
-    form = _choice("Formation", within, lambda m: m.opponent_formation, baseline)
-    form.options = _options(ms, lambda m: m.opponent_formation, baseline)
+    rows, shapes = direct_evidence(profile, ratings)
+    sim_rows, sim_shapes = similar_evidence(league_matches or [], profile.team_id, opp_formation, ratings)
+    rows += sim_rows
+    shapes += sim_shapes
+
+    backs = _choice("Antal backar", rows, "backs")
+    within = [r for r in rows if backs.best and r.values["backs"] == backs.best.value] or rows
+    form = _choice("Formation", within, "formation")
+    form.options = _options(rows, "formation")
     if form.best:
         form.best = next(o for o in form.options if o.value == form.best.value)
-    tactic = _choice("Taktik", ms, lambda m: m.opponent_tactic, baseline)
-    playstyle = _choice("Spelstil", ms, lambda m: m.opponent_playstyle, baseline)
-    aggression = _choice("Aggressivitet", ms, lambda m: m.opponent_aggression, baseline)
 
     rec = Recommendation(
-        baseline=baseline,
-        backs=backs,
-        formation=form,
-        tactic=tactic,
-        playstyle=playstyle,
-        aggression=aggression,
-        confidence=_confidence(backs, baseline, len(ms)),
+        backs=backs, formation=form,
+        tactic=_choice("Taktik", rows, "tactic"),
+        playstyle=_choice("Spelstil", rows, "playstyle"),
+        aggression=_choice("Aggressivitet", rows, "aggression"),
+        confidence=_confidence(backs.best),
+        direct_matches=sum(1 for r in rows if r.direct),
+        similar_matches=len(sim_rows),
+        uses_league=ratings is not None,
     )
 
-    for choice in (backs, form, tactic, playstyle, aggression):
+    for choice in rec.choices:
         best, other = choice.best, choice.runner_up()
         if not best:
             continue
-        line = (f"{choice.label}: lag med **{best.value}** har gått {_record(best)} mot dem "
-                f"({best.ppm:.1f} p/match)")
+        line = f"{choice.label}: lag med **{best.value}** har gjort {_describe(best, profile.name)}"
         if other:
-            line += f", jämfört med {other.value}: {_record(other)} ({other.ppm:.1f} p/match)"
-            if other.matches < MIN_MATCHES:
-                line += " – för få matcher för att väga tungt"
+            line += f". Jämfört med {other.value}: {_describe(other, profile.name)}"
+            if other.weight < MIN_WEIGHT:
+                line += " – för lite underlag för att väga tungt"
         rec.reasons.append(line + ".")
         worst = choice.options[-1] if len(choice.options) > 1 else None
-        if worst and worst.matches >= 2 and worst.ppm < baseline:
-            rec.avoid.append(f"{choice.label}: {worst.value} ({_record(worst)} mot dem)")
+        if worst and worst.weight >= MIN_WEIGHT and worst.score < -0.25:
+            rec.avoid.append(f"{choice.label}: {worst.value} ({_signed(worst.resid)} mål/match mot väntat, "
+                             f"{worst.wins}V {worst.draws}O {worst.losses}F)")
 
     if form.best:
-        shapes = [m.opponent_shape for m in ms if m.opponent_formation == form.best.value]
-        rec.shape = formation.average_shape(shapes)
+        rec.shape = formation.average_shape([s for f, s in shapes if f == form.best.value])
 
-    side = [m for m in ms if opponent_home is None or m.home == opponent_home] or ms
-    likely = profile.most_likely(home=opponent_home) or profile.most_likely()
-    if "formation" in likely:
-        rec.opponent_formation = likely["formation"][0]
-        rec.opponent_shape = formation.average_shape(
-            [m.shape for m in side if m.formation == rec.opponent_formation]
-        )
+    side = [m for m in profile.matches if opponent_home is None or m.home == opponent_home] or profile.matches
+    rec.opponent_formation = opp_formation
+    if opp_formation:
+        rec.opponent_shape = formation.average_shape([m.shape for m in side if m.formation == opp_formation])
     return rec

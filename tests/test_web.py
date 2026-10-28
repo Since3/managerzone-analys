@@ -52,6 +52,19 @@ class WebTest(unittest.TestCase):
         self.assertEqual(data["matches"], [{"mid": 999, "date": "2026-10-30 20:00:00", "home": False,
                                             "opponent_id": 2768, "opponent": "Täfte"}])
 
+    def _post(self, path, body):
+        req = urllib.request.Request(self.base + path, data=json.dumps(body).encode(),
+                                     headers={"Content-Type": "application/json"})
+        return json.loads(urllib.request.urlopen(req).read())
+
+    def _wait(self, job):
+        for _ in range(100):
+            j = json.loads(self._get(f"/api/job?id={job}"))
+            if j["status"] in ("klar", "fel"):
+                return j
+            time.sleep(0.05)
+        self.fail("jobbet blev inte klart")
+
     def test_scout_job(self):
         req = urllib.request.Request(self.base + "/api/scout", data=json.dumps({"team": 2768, "opponent_home": True}).encode(),
                                      headers={"Content-Type": "application/json"})
@@ -67,6 +80,34 @@ class WebTest(unittest.TestCase):
         self.assertEqual(rec["choices"][1]["best"]["value"], "4-2-1-3")
         self.assertEqual(len(rec["shape"]), 10)
         self.assertEqual(j["result"]["matches_count"], 8)
+
+
+class WebLeagueTest(unittest.TestCase):
+    def test_build_league_then_scout_uses_it(self):
+        import tempfile
+        from pathlib import Path
+        from tests.test_league import ME, TAFTE, FakeLeagueClient
+        with tempfile.TemporaryDirectory() as tmp:
+            app = web.App(FakeLeagueClient(Path(tmp) / "matches"))
+            self.assertEqual(app.league_info(ME), {"exists": False})
+            j = app.jobs[app.start_league(ME)]
+            for _ in range(100):
+                if j["status"] in ("klar", "fel"):
+                    break
+                time.sleep(0.02)
+            self.assertEqual(j["status"], "klar", j["error"])
+            self.assertEqual(app.league_info(ME), {"exists": True, "teams": 4, "matches": 6, "series": "div3.1"})
+
+            j = app.jobs[app.start_scout(TAFTE, True, ME)]
+            for _ in range(100):
+                if j["status"] in ("klar", "fel"):
+                    break
+                time.sleep(0.02)
+            self.assertEqual(j["status"], "klar", j["error"])
+            result = j["result"]
+            self.assertTrue(result["recommendation"]["uses_league"])
+            self.assertEqual(len(result["strengths"]), 4)
+            self.assertTrue(any(s["highlight"] for s in result["strengths"]))
 
 
 if __name__ == "__main__":

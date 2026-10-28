@@ -2,7 +2,7 @@ import unittest
 
 from mzanalys import analysis, formation, recommend
 from mzanalys.stats import parse_stats
-from tests.helpers import F_352, F_41212, F_4213, make_stats_xml
+from tests.helpers import F_352, F_41212, F_4213, F_532, make_stats_xml
 
 THEM = (2768, "Täfte")
 WINGS = ("wings", "normal", "normal")
@@ -56,11 +56,13 @@ class RecommendTest(unittest.TestCase):
         self.assertEqual(self.rec.aggression.best.value, "normal")
         self.assertEqual(self.rec.playstyle.best.value, "normal")
 
-    def test_shrinkage_and_baseline(self):
-        self.assertAlmostEqual(self.rec.baseline, 12 / 8)
+    def test_goal_difference_and_shrinkage(self):
+        # Utan ligadatabas är det väntade 0: fyrbackslagen gjorde +1, +4, +1, +1, −1 mot Täfte.
         best = self.rec.backs.best
         self.assertAlmostEqual(best.ppm, 12 / 5)
-        self.assertAlmostEqual(best.score, (12 + 2 * 1.5) / 7)
+        self.assertAlmostEqual(best.resid, 6 / 5)
+        self.assertAlmostEqual(best.score, 2 * 6 / (2 * 5 + recommend.PRIOR_WEIGHT))
+        self.assertEqual((best.direct, self.rec.direct_matches, self.rec.similar_matches), (5, 8, 0))
 
     def test_reasons_avoid_and_shapes(self):
         self.assertTrue(any("4 backar" in r for r in self.rec.reasons))
@@ -69,6 +71,39 @@ class RecommendTest(unittest.TestCase):
         self.assertEqual(self.rec.opponent_formation, "4-1-2-1-2")
         self.assertEqual(len(self.rec.opponent_shape), 10)
         self.assertIn(self.rec.confidence, ("medel", "hög"))
+
+    def test_similar_opponents_from_league(self):
+        # Två ligamatcher mellan andra lag: ett rombenlag (som Täfte) förlorar mot ett fembackslag.
+        league = [
+            parse_stats(make_stats_xml(101, (50, "Romb"), (60, "Fembackar"), (0, 3), home_shape=F_41212,
+                                       away_shape=F_532, home_setup=SHORT, away_setup=WINGS)),
+            parse_stats(make_stats_xml(102, (61, "Fembackar2"), (51, "Romb2"), (2, 0), home_shape=F_532,
+                                       away_shape=F_41212, home_setup=WINGS, away_setup=SHORT)),
+            # Matcher utan rombformation räknas inte.
+            parse_stats(make_stats_xml(103, (70, "X"), (71, "Y"), (5, 0))),
+        ]
+        rec = recommend.recommend(self.profile, opponent_home=True, league_matches=league)
+        self.assertEqual(rec.similar_matches, 2)
+        five = next(o for o in rec.backs.options if o.value == "5 backar")
+        self.assertEqual((five.matches, five.direct, five.wins, five.resid), (2, 0, 2, 2.5))
+
+    def test_ratings_hand_calculated(self):
+        from mzanalys import league as lg
+        # A–B 2–0 och B–A 1–1. Hemmafördel = (2 + 0) / 2 = 1.
+        # Rensat för hemmafördel: A +1 och +1, B −1 och −1. Styrka = summa / (2 + 3).
+        ms = [parse_stats(make_stats_xml(1, (1, "A"), (2, "B"), (2, 0))),
+              parse_stats(make_stats_xml(2, (2, "B"), (1, "A"), (1, 1)))]
+        r = lg.ratings(ms)
+        self.assertAlmostEqual(r.home_advantage, 1.0)
+        self.assertAlmostEqual(r.strength[1], 0.4)
+        self.assertAlmostEqual(r.strength[2], -0.4)
+        self.assertAlmostEqual(r.expected_gd(1, 2, home=True), 1.8)
+        self.assertAlmostEqual(r.expected_gd(2, 1, home=False), -1.8)
+
+    def test_season_block(self):
+        from mzanalys import league as lg
+        mids = [1620000001, 1620000050, 1628449726, 1628449780, 1628449739]
+        self.assertEqual(lg.season_block(mids), [1628449726, 1628449739, 1628449780])
 
     def test_editor_coordinates(self):
         self.assertEqual(formation.to_editor(371, 825), (103, 63))
