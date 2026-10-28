@@ -51,6 +51,22 @@ class RecommendTest(unittest.TestCase):
         self.assertEqual(self.rec.formation.best.value, "4-2-1-3")
         self.assertEqual(self.rec.tactic.best.value, "wings")
 
+    def test_shots_soften_lucky_results(self):
+        # Samma mål (1–0) men olika skott: laget som skapade mest får högst värde.
+        lucky = recommend.Evidence({}, "V", gd=1, expected=0, weight=1, direct=False, sog=-4, conversion=0.3)
+        solid = recommend.Evidence({}, "V", gd=1, expected=0, weight=1, direct=False, sog=4, conversion=0.3)
+        self.assertAlmostEqual(lucky.value, (1 - 1.2) / 2)
+        self.assertAlmostEqual(solid.value, (1 + 1.2) / 2)
+        no_data = recommend.Evidence({}, "V", gd=1, expected=0, weight=1, direct=False)
+        self.assertEqual(no_data.value, 1)
+
+    def test_confidence_per_choice(self):
+        for c in self.rec.choices:
+            self.assertIn(c.confidence, ("låg", "medel", "hög"))
+        self.assertEqual(self.rec.confidence, self.rec.backs.confidence)
+        # Aggressivitet: inget alternativ ligger klart över det väntade mot Täfte.
+        self.assertEqual(self.rec.aggression.confidence, "låg")
+
     def test_single_match_does_not_win(self):
         # "aggressive" har bara en match (en vinst) och ska inte slå "normal" med sex matcher.
         self.assertEqual(self.rec.aggression.best.value, "normal")
@@ -61,7 +77,9 @@ class RecommendTest(unittest.TestCase):
         best = self.rec.backs.best
         self.assertAlmostEqual(best.ppm, 12 / 5)
         self.assertAlmostEqual(best.resid, 6 / 5)
-        self.assertAlmostEqual(best.score, 2 * 6 / (2 * 5 + recommend.PRIOR_WEIGHT))
+        # Lika många skott på mål i testdatan: måttet blir (målskillnad + 0) / 2.
+        self.assertAlmostEqual(best.shots, 0.0)
+        self.assertAlmostEqual(best.score, 2 * 6 / 2 / (2 * 5 + recommend.PRIOR_WEIGHT))
         self.assertEqual((best.direct, self.rec.direct_matches, self.rec.similar_matches), (5, 8, 0))
 
     def test_reasons_avoid_and_shapes(self):
@@ -127,6 +145,17 @@ class RecommendTest(unittest.TestCase):
         self.assertAlmostEqual(r.strength[2], -0.4)
         self.assertAlmostEqual(r.expected_gd(1, 2, home=True), 1.8)
         self.assertAlmostEqual(r.expected_gd(2, 1, home=False), -1.8)
+
+    def test_shot_ratings_and_conversion(self):
+        from mzanalys import league as lg
+        ms = [parse_stats(make_stats_xml(1, (1, "A"), (2, "B"), (2, 0), shots=(8, 2))),
+              parse_stats(make_stats_xml(2, (2, "B"), (1, "A"), (1, 1), shots=(4, 6)))]
+        r = lg.ratings(ms)
+        self.assertAlmostEqual(r.conversion, 4 / 20)
+        # Hemmafördel i skott: (6 + −2) / 2 = 2. Rensat: A +4 och +4, B −4 och −4.
+        self.assertAlmostEqual(r.shot_home_advantage, 2.0)
+        self.assertAlmostEqual(r.shot_strength[1], 8 / 5)
+        self.assertAlmostEqual(r.expected_sog(1, 2, home=False), 3.2 - 2.0)
 
     def test_season_block(self):
         from mzanalys import league as lg

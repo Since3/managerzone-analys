@@ -60,6 +60,8 @@ class MatchSummary:
     sub_minutes: list[int]
     starters: list[Starter] = field(default_factory=list)
     attack_side: str | None = None  # vänster | höger | centralt (som i taktikeditorn)
+    shots_for: int | None = None  # skott på mål
+    shots_against: int | None = None
     shape: formation.Formation | None = None
     opponent_shape: formation.Formation | None = None
     opponent_tactic: str | None = None
@@ -104,6 +106,14 @@ def _state(score: tuple[int, int] | None) -> str | None:
     if score[0] < score[1]:
         return "under"
     return "lika"
+
+
+def _shots(team) -> int | None:
+    value = team.statistics.get("shotsOnGoal")
+    try:
+        return int(float(value)) if value not in (None, "") else None
+    except ValueError:
+        return None
 
 
 def _role(width: float, depth: float) -> str:
@@ -283,6 +293,8 @@ def summarize(match: Match, team_id: int) -> MatchSummary:
         sub_minutes=[s.minute for s in subs if s.minute is not None],
         starters=starter_rows,
         attack_side=formation.attack_side(own_f),
+        shots_for=_shots(team),
+        shots_against=_shots(opp),
         shape=own_f,
         opponent_shape=opp_f,
         opponent_tactic=opp.tactic,

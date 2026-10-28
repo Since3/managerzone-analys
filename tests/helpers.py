@@ -52,6 +52,7 @@ def make_stats_xml(
     events: str = "",
     match_type: str = "1",
     goal_minutes: tuple[tuple[int, ...], tuple[int, ...]] = ((), ()),
+    shots: tuple[int, int] = (5, 5),
 ) -> str:
     (hid, hname), (aid, aname) = home, away
     return f"""<?xml version="1.0" encoding="utf-8"?>
@@ -59,11 +60,11 @@ def make_stats_xml(
   <Team id="{hid}" name="{hname}" shortname="H" visiting="0" tactic="{home_setup[0]}" playstyle="{home_setup[1]}" aggression="{home_setup[2]}">
     <MetaData manager="mgr{hid}" series_name="div1.1"/>
     <HalfStatistics goals="0"/>
-    <Statistics goals="{score[0]}" possession="55" shotsOnGoal="6" shotsWide="4"/>
+    <Statistics goals="{score[0]}" possession="55" shotsOnGoal="{shots[0]}" shotsWide="4"/>
   </Team>
   <Team id="{aid}" name="{aname}" shortname="A" visiting="1" tactic="{away_setup[0]}" playstyle="{away_setup[1]}" aggression="{away_setup[2]}">
     <MetaData manager="mgr{aid}" series_name="div1.1"/>
-    <Statistics goals="{score[1]}" possession="45" shotsOnGoal="3" shotsWide="5"/>
+    <Statistics goals="{score[1]}" possession="45" shotsOnGoal="{shots[1]}" shotsWide="5"/>
   </Team>
   {_players(hid, home_shape, keeper_at_top=False, base_id=hid * 100, goal_minutes=goal_minutes[0])}
   {_players(aid, away_shape, keeper_at_top=True, base_id=aid * 100, goal_minutes=goal_minutes[1])}

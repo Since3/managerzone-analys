@@ -97,6 +97,7 @@ def record_predictions(entries: list[dict], upcoming: list[dict], reports: dict,
             "date": m.get("date"), "opponent_id": m["opponent_id"], "opponent": m["opponent"],
             "home": m["home"], "updated": now, "confidence": rec.get("confidence"),
             "prediction": {dim: (c["best"] or {}).get("value") for dim, c in zip(DIMENSIONS, rec["choices"])},
+            "confidences": {dim: c.get("confidence") for dim, c in zip(DIMENSIONS, rec["choices"])},
         })
     entries.sort(key=lambda e: (e.get("date") or "", e["mid"]))
 

@@ -29,13 +29,14 @@ STATIC_FILES = {
 def _option(o: recommend.Option) -> dict:
     return {"value": o.value, "matches": o.matches, "direct": o.direct, "wins": o.wins, "draws": o.draws,
             "losses": o.losses, "ppm": round(o.ppm, 2), "resid": round(o.resid, 2),
-            "score": round(o.score, 2), "weight": o.weight, "combined": round(o.combined, 2)}
+            "score": round(o.score, 2), "weight": o.weight, "combined": round(o.combined, 2),
+            "shots": None if o.shots is None else round(o.shots, 2)}
 
 
 def _choice(c: recommend.Choice) -> dict:
     return {"label": c.label, "best": _option(c.best) if c.best else None,
             "options": [_option(o) for o in c.options],
-            "own": {k: _option(o) for k, o in c.own.items()}}
+            "own": {k: _option(o) for k, o in c.own.items()}, "confidence": c.confidence}
 
 
 def _shape(points) -> list[dict] | None:
