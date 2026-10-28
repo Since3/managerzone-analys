@@ -1,0 +1,160 @@
+"""Kommandoradsgränssnitt: python -m mzanalys <kommando> …"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+from . import analysis, formation, matchlist, report
+from .fetch import Client, FetchError
+from .stats import Match, StatsXmlError, parse_stats
+
+
+def _read_mids(args) -> list[int]:
+    mids: list[int] = []
+    for value in args.matcher or []:
+        mids += matchlist.mids_from_text(value)
+    if getattr(args, "fil", None):
+        mids += matchlist.mids_from_text(Path(args.fil).read_text(encoding="utf-8"))
+    return list(dict.fromkeys(mids))
+
+
+def _client(args) -> Client:
+    return Client(cache_dir=args.cache, delay=args.paus)
+
+
+def _load_cached(cache: Path) -> list[Match]:
+    out = []
+    for path in sorted(cache.glob("*.xml")):
+        try:
+            out.append(parse_stats(path.read_text(encoding="utf-8")))
+        except StatsXmlError as e:
+            print(f"Hoppar över {path.name}: {e}", file=sys.stderr)
+    return out
+
+
+def cmd_hamta(args) -> int:
+    mids = _read_mids(args)
+    if not mids:
+        print("Ange match-ID:n, t.ex. `hamta 1625669278` eller `hamta --fil matcher.txt`.", file=sys.stderr)
+        return 2
+    client = _client(args)
+    ok = 0
+    for i, mid in enumerate(mids, 1):
+        cached = client.cache_path(mid).exists()
+        try:
+            client.match_stats(mid)
+            ok += 1
+            print(f"[{i}/{len(mids)}] {mid}: {'fanns i cachen' if cached else 'hämtad'}")
+        except (FetchError, StatsXmlError) as e:
+            print(f"[{i}/{len(mids)}] {mid}: {e}", file=sys.stderr)
+    print(f"{ok} av {len(mids)} matcher finns nu i {args.cache}.")
+    return 0 if ok == len(mids) else 1
+
+
+def cmd_lista(args) -> int:
+    if args.html:
+        mids = matchlist.league_mids_from_html(Path(args.html).read_text(encoding="utf-8"))
+    else:
+        client = _client(args)
+        try:
+            if args.session:
+                mids = matchlist.league_mids_from_html(client.league_matchlist_html(args.lag))
+            else:
+                xml = client.team_matchlist_xml(args.lag, limit=max(args.antal * 3, 50))
+                if args.visa_typer:
+                    for t, c in matchlist.match_types_in_xml(xml).items():
+                        print(f"{t}: {c}")
+                    return 0
+                mids = matchlist.league_mids_from_xml(xml)
+        except (FetchError, ValueError) as e:
+            print(f"Kunde inte hämta matchlistan: {e}", file=sys.stderr)
+            return 1
+    mids = mids[: args.antal]
+    if args.ut:
+        Path(args.ut).write_text("\n".join(map(str, mids)) + "\n", encoding="utf-8")
+    print("\n".join(map(str, mids)))
+    return 0
+
+
+def cmd_analysera(args) -> int:
+    cache = Path(args.cache)
+    mids = _read_mids(args)
+    if mids:
+        client = _client(args)
+        matches = []
+        for mid in mids:
+            try:
+                matches.append(parse_stats(client.match_stats(mid)))
+            except (FetchError, StatsXmlError) as e:
+                print(f"{mid}: {e}", file=sys.stderr)
+    else:
+        matches = _load_cached(cache)
+    profile = analysis.build_profile(matches, args.lag)
+    profile.matches = profile.matches[: args.antal]
+    text = report.render(profile)
+    if args.ut:
+        Path(args.ut).write_text(text, encoding="utf-8")
+        print(f"Rapport sparad i {args.ut} ({len(profile.matches)} matcher).")
+    else:
+        print(text)
+    return 0 if profile.matches else 1
+
+
+def cmd_match(args) -> int:
+    source = Path(args.match)
+    if source.exists():
+        text = source.read_text(encoding="utf-8")
+    else:
+        text = _client(args).match_stats(int(args.match))
+    m = parse_stats(text)
+    print(f"Match {m.mid}  {m.date or ''}  typ={m.type or '?'}")
+    for t in m.teams:
+        f = formation.derive(m.starters(t.id))
+        print(
+            f"  {'Hemma' if t.home else 'Borta'}: {t.name} ({t.id})  mål {t.goals}  "
+            f"formation {f.lines if f else '?'} [{f.zones if f else '?'}]  "
+            f"{t.tactic}/{t.playstyle}/{t.aggression}"
+        )
+        for c in m.tactic_changes:
+            if c.team_id == t.id:
+                print(f"     {c.minute}' {c.kind} → {c.new_setting}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(prog="mzanalys", description="Taktisk analys av ManagerZone-ligamatcher.")
+    p.add_argument("--cache", default="data/matches", help="katalog för sparade matchfiler")
+    p.add_argument("--paus", type=float, default=5.0, help="sekunder mellan anrop (minst 3)")
+    sub = p.add_subparsers(dest="kommando", required=True)
+
+    h = sub.add_parser("hamta", help="hämta och spara matchfiler")
+    h.add_argument("matcher", nargs="*", help="match-ID:n")
+    h.add_argument("--fil", help="textfil med match-ID:n")
+    h.set_defaults(func=cmd_hamta)
+
+    li = sub.add_parser("lista", help="ta fram ligamatchernas ID:n för ett lag")
+    li.add_argument("lag", type=int, help="lag-ID")
+    li.add_argument("--antal", type=int, default=20)
+    li.add_argument("--html", help="sparad matchlista (HTML) i stället för att hämta")
+    li.add_argument("--session", action="store_true", help="använd sajtens lista med din session (MZ_PHPSESSID)")
+    li.add_argument("--visa-typer", action="store_true", help="visa vilka matchtyper XML-listan innehåller")
+    li.add_argument("--ut", help="spara ID:n i en fil")
+    li.set_defaults(func=cmd_lista)
+
+    a = sub.add_parser("analysera", help="taktisk profil för ett lag")
+    a.add_argument("lag", type=int, help="lag-ID")
+    a.add_argument("matcher", nargs="*", help="match-ID:n (annars används alla i cachen)")
+    a.add_argument("--fil", help="textfil med match-ID:n")
+    a.add_argument("--antal", type=int, default=20)
+    a.add_argument("--ut", help="spara rapporten som Markdown")
+    a.set_defaults(func=cmd_analysera)
+
+    m = sub.add_parser("match", help="visa en enskild match")
+    m.add_argument("match", help="match-ID eller sökväg till en sparad matchfil")
+    m.set_defaults(func=cmd_match)
+
+    args = p.parse_args(argv)
+    args.paus = max(args.paus, 3.0)
+    return args.func(args)
