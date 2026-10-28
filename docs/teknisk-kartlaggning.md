@@ -4,6 +4,17 @@ Datum: 2026-10-27. Analysverktyget är ännu inte byggt. Det här dokumentet bes
 
 ---
 
+## Uppdatering 2026-10-28: första eget test (nivå A)
+
+Testet kördes av användaren från en vanlig dator med verktyget `mzanalys`, utan inloggning, mot ligamatch 1628449768 (Gårdagens talanger – Sunderland FC):
+
+- `getMatchFiles.php?type=stats` var först tom. `check-match` svarade `queued` två gånger och sedan `ok`, varefter filen kunde hämtas. **Verifierat: matchfilen för en ligamatch går att hämta utan inloggning efter förberedelse via `check-match`.**
+- Ur filen lästes datum (2026-10-25 18:00), lag-ID och lagnamn, hemma/borta, resultat 3–0 (**bekräftat av användaren**) samt `tactic`, `playstyle` och `aggression` för **båda** lagen. **Verifierat: motståndarens taktiska inställningar finns i matchfilen.**
+- Startpositionerna gav formationerna 4-3-1-2 och 5-3-1-1. De är ännu inte bekräftade.
+- **Nytt:** `SoccerStatistics@type` är numeriskt, `type="1"` för denna ligamatch, och inte `"series"`. Vilka siffror som motsvarar cup- och vänskapsmatcher är ännu inte känt.
+
+---
+
 ## 0. Sammanfattning
 
 - **Officiellt API:** Det finns inget dokumenterat, öppet API. Det äldre utvecklarprogrammet ("MZ Tools", certifierade appar) är enligt ManagerZone-personal sedan 2015 stängt för nya appar. Kvar finns ett äldre, odokumenterat **XML-gränssnitt** under `/xml/` (länkat som "XML" i sidfoten), samt de interna anrop som webbplatsen själv använder (`/ajax.php`, `/matchviewer/`).
