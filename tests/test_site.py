@@ -23,10 +23,12 @@ class SiteTest(unittest.TestCase):
             client = UpcomingClient(Path(tmp) / "data" / "matches")
             snap = site.snapshot(client, ME)
             self.assertEqual(snap["series"], "div3.1")
-            self.assertEqual(set(snap["reports"]), {str(TAFTE), "50", "51"})
+            self.assertEqual(set(snap["reports"]), {str(ME), str(TAFTE), "50", "51"})
             self.assertEqual([m["opponent_id"] for m in snap["upcoming"]], [TAFTE])
             self.assertEqual(set(snap["reports"][str(TAFTE)]), {"total", "as_home", "as_away"})
-            self.assertNotIn(ME, [t["team_id"] for t in snap["teams"]])
+            self.assertEqual([t["team_id"] for t in snap["teams"] if t["is_me"]], [ME])
+            mine = snap["reports"][str(ME)]["total"]["recommendation"]
+            self.assertEqual(mine["own_matches"], 0)  # din egen rapport väger inte in dig själv
             rec = snap["reports"][str(TAFTE)]["total"]["recommendation"]
             self.assertEqual(rec["own_matches"], 3)  # dina tre ligamatcher i testligan
             self.assertTrue(any(c["own"] for c in rec["choices"]))

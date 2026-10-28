@@ -45,6 +45,7 @@ button:disabled { opacity: .5; cursor: default; }
 .error { color: var(--bad); }
 .fixtures { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-top: 12px; }
 .fixture { text-align: left; background: var(--bg); color: var(--text); border: 1px solid var(--line); padding: 12px; }
+.fixture.mine { border-color: var(--accent); }
 .fixture:hover, .fixture.active { border-color: var(--accent); background: var(--accent-soft); }
 .fixture b { display: block; font-size: 15px; }
 .progress { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin: 8px 0; }
@@ -137,18 +138,18 @@ td.pos { color: var(--good); font-weight: 600; } td.neg { color: var(--bad); fon
     <section class="card">
       <div class="hero">
         <div>
-          <div class="row"><h2 style="margin:0">Förslag på upplägg</h2> <span id="confidence" class="badge"></span></div>
+          <div class="row"><h2 style="margin:0" id="recTitle">Förslag på upplägg</h2> <span id="confidence" class="badge"></span></div>
           <div id="recFormation" class="big"></div>
           <div id="recChips" class="chips"></div>
           <h3>Varför</h3>
           <ul id="recReasons"></ul>
-          <div id="recAvoidWrap"><h3>Undvik</h3><ul id="recAvoid"></ul></div>
+          <div id="recAvoidWrap"><h3 id="recAvoidTitle">Undvik</h3><ul id="recAvoid"></ul></div>
           <p class="muted">Förslaget bygger på hur andra lag har gått mot motståndaren. Små underlag vägs ner
             mot genomsnittet. Spelarnas kvalitet och motståndarnas styrka påverkar också utfallet.</p>
         </div>
         <div>
           <div class="pitches">
-            <div class="pitch-box"><div class="label" style="color:var(--me)">Ditt förslag</div><div id="pitchMe"></div></div>
+            <div class="pitch-box"><div class="label" style="color:var(--me)" id="pitchMeLabel">Ditt förslag</div><div id="pitchMe"></div></div>
             <div class="pitch-box"><div class="label" style="color:var(--them)" id="pitchThemLabel">Väntad motståndare</div><div id="pitchThem"></div></div>
           </div>
           <details>
@@ -351,11 +352,12 @@ function pitch(shape, color, label) {
 
 function resultCell(r) { return `<td class="${r}">${r}</td>`; }
 
-function render(d, opponentHome, log) {
+function render(d, opponentHome, log, isMe = false) {
   $("report").classList.remove("hidden");
-  $("repTitle").textContent = `${d.name} (lag-ID ${d.team_id})`;
+  $("repTitle").textContent = isMe ? `Ditt lag: ${d.name}` : `${d.name} (lag-ID ${d.team_id})`;
   const small = d.matches_count < 5 ? " <b>Litet underlag – se mönstren som indikationer.</b>" : "";
-  $("repSummary").innerHTML = `${d.matches_count} ligamatcher. Deras resultat: ${d.record.V}V ${d.record.O}O ${d.record.F}F,
+  $("repSummary").innerHTML = (isMe ? "Så ser ditt lag ut för dina motståndare: samma analys som de skulle få om dig. " : "") +
+    `${d.matches_count} ligamatcher. ${isMe ? "Ditt" : "Deras"} resultat: ${d.record.V}V ${d.record.O}O ${d.record.F}F,
     mål ${d.goals[0]}–${d.goals[1]}.${small}` + (log && log.length ? `<br>Hoppades över: ${esc(log.join("; "))}` : "");
 
   const rec = d.recommendation;
@@ -370,8 +372,12 @@ function render(d, opponentHome, log) {
   $("recAvoid").innerHTML = rec.avoid.map(r => `<li>${esc(svText(r))}</li>`).join("");
   $("recAvoidWrap").classList.toggle("hidden", !rec.avoid.length);
 
+  $("recTitle").textContent = isMe ? "Mest effektivt mot dig" : "Förslag på upplägg";
+  $("recAvoidTitle").textContent = isMe ? "Har fungerat sämst mot dig" : "Undvik";
+  $("pitchMeLabel").textContent = isMe ? "Bäst mot dig" : "Ditt förslag";
   $("pitchMe").innerHTML = pitch(rec.shape, "var(--me)", "Föreslagen formation");
-  $("pitchThemLabel").textContent = `Väntad motståndare: ${rec.opponent_formation || "?"}`
+  $("pitchThemLabel").textContent = isMe ? `Din vanliga uppställning: ${rec.opponent_formation || "?"}`
+    : `Väntad motståndare: ${rec.opponent_formation || "?"}`
     + (opponentHome === true ? " (hemma)" : opponentHome === false ? " (borta)" : "");
   $("pitchThem").innerHTML = pitch(rec.opponent_shape, "var(--them)", "Motståndarens väntade formation");
   $("coordTable").innerHTML = rec.shape
@@ -433,11 +439,11 @@ function initSnapshot(snap) {
   $("snapTitle").textContent = `${snap.my_team_name || "Din serie"}${snap.series ? ` · ${snap.series}` : ""}`;
   const when = new Date(snap.generated);
   $("snapInfo").textContent = `Uppdaterad ${when.toLocaleString("sv-SE", { dateStyle: "medium", timeStyle: "short" })}. ` +
-    `${snap.league_matches} ligamatcher, ${snap.teams.length + 1} lag.`;
-  const open = (btn, report, opponentHome) => {
+    `${snap.league_matches} ligamatcher, ${snap.teams.length} lag.`;
+  const open = (btn, report, opponentHome, isMe = false) => {
     document.querySelectorAll(".fixture").forEach(x => x.classList.remove("active"));
     btn.classList.add("active");
-    render(report, opponentHome, []);
+    render(report, opponentHome, [], isMe);
   };
   const card = (html, onclick) => {
     const b = document.createElement("button");
@@ -455,10 +461,13 @@ function initSnapshot(snap) {
        <b>${esc(m.opponent)}</b>`,
       b => open(b, m.home ? report.as_away : report.as_home, !m.home)));
   });
-  snap.teams.filter(t => snap.reports[t.team_id]).forEach((t, i) => {
-    $("snapTeams").appendChild(card(
-      `<span class="muted">${i + 1}. styrka ${signed(t.strength)}</span><b>${esc(t.name)}</b>`,
-      b => open(b, snap.reports[t.team_id].total, null)));
+  snap.teams.forEach((t, i) => {
+    if (!snap.reports[t.team_id]) return;
+    const b = card(
+      `<span class="muted">${i + 1}. styrka ${signed(t.strength)}${t.is_me ? " · <strong>Ditt lag</strong>" : ""}</span><b>${esc(t.name)}</b>`,
+      btn => open(btn, snap.reports[t.team_id].total, null, t.is_me));
+    if (t.is_me) b.classList.add("mine");
+    $("snapTeams").appendChild(b);
   });
 }
 if (SNAPSHOT) initSnapshot(SNAPSHOT);
