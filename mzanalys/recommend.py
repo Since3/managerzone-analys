@@ -17,6 +17,9 @@ Ditt eget lags historik (valfri) väger in med OWN_WEIGHT: ett alternativ får t
 OWN_WEIGHT × (ditt lags krympta värde med det alternativet). Alternativ du aldrig använt
 räknas neutralt (0). Det som fungerat mot motståndaren väger alltså tyngst.
 
+Matcher där något lag fick rött kort före minut 60 väger RED_CARD_WEIGHT (hälften), eftersom
+de säger mindre om hur uppläggen fungerar elva mot elva.
+
 Förslaget bygger på historiska resultat, inte på spelmotorn. Spelarnas kvalitet påverkar
 också utfallet.
 """
@@ -34,6 +37,7 @@ DIRECT_WEIGHT = 2.0
 PRIOR_WEIGHT = 3.0
 MIN_WEIGHT = 4.0  # t.ex. två direkta matcher eller fyra liknande
 OWN_WEIGHT = 0.5
+RED_CARD_WEIGHT = 0.5  # vikt för matcher med tidigt rött kort
 
 DIMENSIONS = (
     ("backs", "Antal backar"),
@@ -52,6 +56,7 @@ class Evidence:
     expected: float
     weight: float
     direct: bool
+    early_red: bool = False  # tidigt rött kort i matchen (vikten är redan sänkt)
     sog: int | None = None  # skillnad i skott på mål (egna minus motståndarens)
     expected_sog: float = 0.0
     conversion: float = DEFAULT_CONVERSION
@@ -82,6 +87,7 @@ class Option:
     weight: float
     combined: float = 0.0  # score plus tillägg för ditt lags historik
     shots: float | None = None  # skott på mål jämfört med väntat, viktat medel
+    red_matches: int = 0  # matcher med tidigt rött kort (lägre vikt)
 
 
 @dataclass
@@ -140,7 +146,8 @@ def _evidence(values, s: MatchSummary, team: int, opponent: int, home: bool, rat
     return Evidence(
         values=values, result=s.result, gd=s.goals_for - s.goals_against,
         expected=ratings.expected_gd(team, opponent, home) if ratings else 0.0,
-        weight=weight, direct=direct, sog=sog,
+        weight=weight * (RED_CARD_WEIGHT if s.early_red else 1.0), direct=direct,
+        early_red=s.early_red, sog=sog,
         expected_sog=ratings.expected_sog(team, opponent, home) if ratings else 0.0,
         conversion=ratings.conversion if ratings else DEFAULT_CONVERSION,
     )
@@ -151,7 +158,8 @@ def _flip(m: MatchSummary) -> MatchSummary:
     from dataclasses import replace
 
     return replace(m, home=not m.home, goals_for=m.goals_against, goals_against=m.goals_for,
-                   shots_for=m.shots_against, shots_against=m.shots_for)
+                   shots_for=m.shots_against, shots_against=m.shots_for,
+                   red_for=m.red_against, red_against=m.red_for)
 
 
 def direct_evidence(profile: TeamProfile, ratings=None) -> tuple[list[Evidence], list]:
@@ -221,6 +229,7 @@ def _options(rows: list[Evidence], dim: str) -> list[Option]:
             resid=goals / w, score=weighted / (w + PRIOR_WEIGHT), weight=w,
             combined=weighted / (w + PRIOR_WEIGHT),
             shots=sum(r.weight * r.shot_resid for r in with_shots) / shot_w if shot_w else None,
+            red_matches=sum(1 for r in rs if r.early_red),
         ))
     out.sort(key=lambda o: (-o.score, -o.weight))
     return out

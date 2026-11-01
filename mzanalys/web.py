@@ -30,7 +30,7 @@ def _option(o: recommend.Option) -> dict:
     return {"value": o.value, "matches": o.matches, "direct": o.direct, "wins": o.wins, "draws": o.draws,
             "losses": o.losses, "ppm": round(o.ppm, 2), "resid": round(o.resid, 2),
             "score": round(o.score, 2), "weight": o.weight, "combined": round(o.combined, 2),
-            "shots": None if o.shots is None else round(o.shots, 2)}
+            "shots": None if o.shots is None else round(o.shots, 2), "red_matches": o.red_matches}
 
 
 def _choice(c: recommend.Choice) -> dict:
@@ -85,6 +85,7 @@ def scouting_json(profile: analysis.TeamProfile, opponent_home: bool | None,
                 "formation": m.formation, "setup": m.setup, "possession": m.possession,
                 "changes": [str(c) for c in m.changes],
                 "opponent_formation": m.opponent_formation, "opponent_setup": m.opponent_setup,
+                "red_for": m.red_for, "red_against": m.red_against, "early_red": m.early_red,
             }
             for m in profile.matches
         ],

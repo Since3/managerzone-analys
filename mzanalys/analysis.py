@@ -14,6 +14,7 @@ CUP = "6"
 
 RESULTS = ("V", "O", "F")
 EARLY_MINUTE = 10  # ändringar hit räknas som tidiga
+EARLY_RED_MINUTE = 60  # röda kort före den här minuten snedvrider matchen
 MASKING_SHARE = 0.3  # minst så stor andel av matcherna (och minst två) ger varning
 
 
@@ -62,6 +63,13 @@ class MatchSummary:
     attack_side: str | None = None  # vänster | höger | centralt (som i taktikeditorn)
     shots_for: int | None = None  # skott på mål
     shots_against: int | None = None
+    red_for: list[int | None] = field(default_factory=list)  # minuter för röda kort, eget lag
+    red_against: list[int | None] = field(default_factory=list)  # motståndarens röda kort
+
+    @property
+    def early_red(self) -> bool:
+        """Sant om något lag fick rött kort före EARLY_RED_MINUTE (okänd minut räknas som tidig)."""
+        return any(m is None or m < EARLY_RED_MINUTE for m in self.red_for + self.red_against)
     shape: formation.Formation | None = None
     opponent_shape: formation.Formation | None = None
     opponent_tactic: str | None = None
@@ -295,6 +303,8 @@ def summarize(match: Match, team_id: int) -> MatchSummary:
         attack_side=formation.attack_side(own_f),
         shots_for=_shots(team),
         shots_against=_shots(opp),
+        red_for=[c.minute for c in match.red_cards if c.team_id == team_id],
+        red_against=[c.minute for c in match.red_cards if c.team_id == opp.id],
         shape=own_f,
         opponent_shape=opp_f,
         opponent_tactic=opp.tactic,

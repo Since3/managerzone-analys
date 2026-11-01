@@ -6,6 +6,7 @@ Loggen är en lista med en post per kommande ligamatch (nyckel: match-ID):
   jämfört med det väntade utifrån lagens styrka.
 
 En match räknas som att du följde förslaget om minst FOLLOW_MIN av de fem valen stämde.
+Matcher där något lag fick rött kort före minut 60 visas men räknas inte i jämförelsen.
 Förslag sparas och uppdateras bara före avspark (matchtiden anges i svensk tid). Poster som
 råkat sparas efter avspark tas bort, eftersom de inte är riktiga förhandsförslag.
 """
@@ -107,12 +108,16 @@ def evaluate(entries: list[dict], matches, my_team: int, ratings=None) -> None:
     drop_late(entries)
     by_mid = {m.mid: m for m in matches}
     for e in entries:
-        if e.get("outcome") or e["mid"] not in by_mid:
+        if e["mid"] not in by_mid:
             continue
         match = by_mid[e["mid"]]
         if not any(t.id == my_team for t in match.teams):
             continue
         s = analysis.summarize(match, my_team)
+        if e.get("outcome"):
+            if "red_cards" not in e["outcome"]:  # utfall sparade innan röda kort följdes upp
+                e["outcome"]["red_cards"] = _red(s)
+            continue
         if s.goals_for is None or s.goals_against is None:
             continue
         played = _values(s)
@@ -122,7 +127,17 @@ def evaluate(entries: list[dict], matches, my_team: int, ratings=None) -> None:
             "played": played, "followed": followed,
             "goals_for": s.goals_for, "goals_against": s.goals_against, "result": s.result,
             "gd": s.goals_for - s.goals_against, "expected": round(expected, 2),
+            "red_cards": _red(s),
         }
+
+
+def _red(s) -> dict:
+    return {"for": s.red_for, "against": s.red_against, "early": s.early_red}
+
+
+def _counts(e: dict) -> bool:
+    """Räknas matchen i jämförelsen? Inte om den snedvreds av ett tidigt rött kort."""
+    return bool(e.get("outcome")) and not e["outcome"].get("red_cards", {}).get("early")
 
 
 def _group(rows: list[dict]) -> dict:
@@ -139,7 +154,8 @@ def _group(rows: list[dict]) -> dict:
 
 
 def summary(entries: list[dict]) -> dict:
-    done = [e for e in entries if e.get("outcome")]
+    played = [e for e in entries if e.get("outcome")]
+    done = [e for e in played if _counts(e)]
     followed = [e for e in done if len(e["outcome"]["followed"]) >= FOLLOW_MIN]
     other = [e for e in done if len(e["outcome"]["followed"]) < FOLLOW_MIN]
     per_dimension = {
@@ -150,7 +166,8 @@ def summary(entries: list[dict]) -> dict:
     return {
         "follow_min": FOLLOW_MIN,
         "evaluated": len(done),
-        "pending": len(entries) - len(done),
+        "excluded_red": len(played) - len(done),
+        "pending": len(entries) - len(played),
         "followed": _group(followed),
         "not_followed": _group(other),
         "per_dimension": per_dimension,

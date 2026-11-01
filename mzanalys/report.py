@@ -83,6 +83,10 @@ def _match_table(profile: TeamProfile) -> list[str]:
     ]
     for m in profile.matches:
         score = f"{m.goals_for}–{m.goals_against} {m.result}" if m.goals_for is not None else "?"
+        reds = [f"rött {x if x is not None else '?'}'" for x in m.red_for] + \
+               [f"motst. rött {x if x is not None else '?'}'" for x in m.red_against]
+        if reds:
+            score += " (" + ", ".join(reds) + ")"
         out.append(
             "| {date} | {ha} | {opp} | {score} | {f} | {setup} | {pos} | {ch} | {of} | {os} |".format(
                 date=(m.date or "?")[:10],
