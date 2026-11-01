@@ -21,6 +21,49 @@
    "tactic": "hög",
    "playstyle": "medel",
    "aggression": "låg"
+  },
+  "outcome": {
+   "played": {
+    "backs": "4 backar",
+    "formation": "4-3-3",
+    "tactic": "shortpass",
+    "playstyle": "normal",
+    "aggression": "normal"
+   },
+   "followed": [
+    "backs",
+    "tactic",
+    "playstyle"
+   ],
+   "goals_for": 2,
+   "goals_against": 0,
+   "result": "V",
+   "gd": 2,
+   "expected": 1.02
+  }
+ },
+ {
+  "mid": 1628449787,
+  "created": "2026-11-01T21:15:07+00:00",
+  "date": "2026-11-04 18:45",
+  "opponent_id": 14661,
+  "opponent": "Dynamo Strandnäs",
+  "home": true,
+  "updated": "2026-11-01T21:15:07+00:00",
+  "confidence": "låg",
+  "prediction": {
+   "backs": "4 backar",
+   "formation": "4-2-1-3",
+   "tactic": "shortpass",
+   "playstyle": "offensive",
+   "aggression": "normal"
+  },
+  "confidences": {
+   "backs": "låg",
+   "formation": "låg",
+   "tactic": "låg",
+   "playstyle": "låg",
+   "aggression": "låg"
   }
  }
 ]
