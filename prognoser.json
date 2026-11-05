@@ -64,6 +64,25 @@
    "tactic": "låg",
    "playstyle": "låg",
    "aggression": "låg"
+  },
+  "outcome": {
+   "played": {
+    "backs": "4 backar",
+    "formation": "4-3-3",
+    "tactic": "shortpass",
+    "playstyle": "normal",
+    "aggression": "normal"
+   },
+   "followed": [
+    "backs",
+    "tactic",
+    "aggression"
+   ],
+   "goals_for": 1,
+   "goals_against": 2,
+   "result": "F",
+   "gd": -1,
+   "expected": -0.34
   }
  }
 ]
