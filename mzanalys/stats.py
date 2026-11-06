@@ -51,6 +51,16 @@ class TacticChange:
     minute: int | None
 
 
+RED_CARD_TYPES = ("red", "second yellow")  # utvisning: rött eller andra gula
+
+
+@dataclass
+class RedCard:
+    team_id: int
+    player: str
+    minute: int | None
+
+
 @dataclass
 class Goal:
     team_id: int  # laget som fick målet tillgodoräknat
@@ -82,6 +92,7 @@ class Match:
     substitutions: list[Substitution]
     tactic_changes: list[TacticChange]
     goals: list[Goal] = field(default_factory=list)
+    red_cards: list[RedCard] = field(default_factory=list)
 
     def score_at(self, team_id: int, minute: int | None) -> tuple[int, int] | None:
         """Ställningen (egna, motståndarens) före given minut, sett från team_id."""
@@ -202,6 +213,13 @@ def parse_stats(text: str) -> Match:
         )
 
     # Målhändelser. Goal@team anger laget som får målet (självmål), annars spelarens lag.
+    red_cards = [
+        RedCard(team_id=_int(p.get("teamId")) or 0, player=p.get("name", ""),
+                minute=_clock_minute(c.get("clock") or c.get("time")))
+        for p in root.iter("Player")
+        for c in p.findall("Card")
+        if c.get("type") in RED_CARD_TYPES
+    ]
     goal_events = [
         Goal(
             team_id=_int(g.get("team")) or _int(p.get("teamId")) or 0,
@@ -247,4 +265,5 @@ def parse_stats(text: str) -> Match:
         substitutions=subs,
         tactic_changes=changes,
         goals=goal_events,
+        red_cards=red_cards,
     )

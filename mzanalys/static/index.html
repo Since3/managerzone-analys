@@ -46,6 +46,7 @@ button:disabled { opacity: .5; cursor: default; }
 .fixtures { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-top: 12px; }
 .fixture { text-align: left; background: var(--bg); color: var(--text); border: 1px solid var(--line); padding: 12px; }
 .fixture.mine { border-color: var(--accent); }
+.red { display: inline-block; width: 8px; height: 11px; background: var(--bad); border-radius: 2px; margin-left: 4px; vertical-align: -1px; }
 .note { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); }
 .note.warn { border-color: var(--warn); }
 .stat { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
@@ -392,6 +393,12 @@ function notes(d, isMe) {
   return out.join("");
 }
 
+// Röda kort: liten röd markering med minut, t.ex. "▮ 4'" (eget lag först, sedan motståndarens).
+function redCards(mine, theirs) {
+  const fmt = (list, who) => (list || []).map(m => `<span class="red" title="rött kort ${who}"></span><span class="muted">${m ?? "?"}'</span>`).join("");
+  return fmt(mine, "") + fmt(theirs, "motståndaren");
+}
+
 function resultCell(r) { return `<td class="${r}">${r}</td>`; }
 
 function render(d, opponentHome, log, isMe = false) {
@@ -435,6 +442,7 @@ function render(d, opponentHome, log, isMe = false) {
       : `. Bygg ligadatabasen för ett större underlag och hänsyn till lagens styrka. <b>Mål</b> och <b>Skott</b> är här
       skillnaden i mål respektive skott på mål per match.`) +
     " Förslaget väger mål och skott lika, eftersom skott är mindre beroende av tur. V-O-F räknas för laget som mötte dem." +
+    " Matcher där något lag fick rött kort före minut 60 väger hälften." +
     " <b>Matcher</b> anger antal matcher, och inom parentes hur många av dem som var mot motståndaren." +
     (rec.own_matches ? ` Kolumnen <b>Ditt lag</b> visar hur ${esc(rec.own_name || "ditt lag")} har gått med samma val
       (+/− mot väntat och antal matcher) i ${rec.own_matches} ligamatcher; det väger in med halv vikt i förslaget.` : "");
@@ -472,7 +480,7 @@ function render(d, opponentHome, log, isMe = false) {
   $("matches").innerHTML = `<tr><th>Datum</th><th>H/B</th><th>Motståndare</th><th>Res.</th><th></th><th>Formation</th>
     <th>Upplägg</th><th>Boll %</th><th>Ändringar</th><th>Motst. formation</th><th>Motst. upplägg</th></tr>` +
     d.matches.map(m => `<tr><td>${esc(m.date)}</td><td>${m.home ? "H" : "B"}</td><td>${esc(m.opponent)}</td>
-      <td>${m.goals_for}–${m.goals_against}</td>${resultCell(m.result)}<td>${esc(m.formation || "?")}</td>
+      <td>${m.goals_for}–${m.goals_against}${redCards(m.red_for, m.red_against)}</td>${resultCell(m.result)}<td>${esc(m.formation || "?")}</td>
       <td>${esc(m.setup)}</td><td>${esc(m.possession || "–")}</td><td>${esc(m.changes.join("; ") || "–")}</td>
       <td>${esc(m.opponent_formation || "?")}</td><td>${esc(m.opponent_setup)}</td></tr>`).join("");
   $("report").scrollIntoView({ behavior: "smooth" });
@@ -527,8 +535,10 @@ function renderTracking(t) {
     ? `${t.evaluated} spelade ligamatcher med förslag. "Följde förslaget" betyder att minst ${t.follow_min} av 5 val
       (antal backar, formation, taktik, spelstil, aggressivitet) stämde. <b>+/−</b> är målskillnad per match jämfört
       med det väntade utifrån lagens styrka.` + (t.evaluated < 6 ? " <b>Än så länge få matcher – vänta med slutsatser.</b>" : "")
-    : `Förslaget inför ${pending.length ? esc(pending[0].opponent) : "nästa match"} är sparat. Efter matchen visas här
-      hur det gick och om du följde förslaget.`;
+    : pending.length ? `Förslaget inför ${esc(pending[0].opponent)} är sparat. Efter matchen visas här
+      hur det gick och om du följde förslaget.` : "Inga matcher att jämföra än.";
+  if (t.excluded_red) $("trackIntro").innerHTML += ` <b>${t.excluded_red} ${t.excluded_red === 1 ? "match" : "matcher"} med
+    tidigt rött kort</b> (före minut 60) visas i tabellen men räknas inte, eftersom den inte spelades elva mot elva.`;
   const tile = (title, g) => `<div class="stat"><div class="muted">${title}</div>` + (g.matches
     ? `<div class="big">${g.ppm.toFixed(1)} p/match</div><div class="muted">${g.matches} ${g.matches === 1 ? "match" : "matcher"} · ${g.wins}-${g.draws}-${g.losses}
        · ${signed(g.resid)} mål/match mot väntat</div>` : `<div class="muted">Inga matcher än</div>`) + "</div>";
@@ -543,13 +553,14 @@ function renderTracking(t) {
       <td class="${g.not_followed.resid > 0 ? "pos" : g.not_followed.resid < 0 ? "neg" : ""}">${g.not_followed.matches ? signed(g.not_followed.resid) : ""}</td></tr>`).join("")}
     </table></div>` : "";
   const brief = p => p ? [p.formation, svShort(p.tactic || "")].filter(Boolean).join(" · ") : "–";
-  $("trackTable").innerHTML = "<tr><th>Datum</th><th>Motståndare</th><th>Förslag</th><th>Du spelade</th><th>Följt</th><th>Res.</th></tr>" +
+  $("trackTable").innerHTML = "<tr><th>Datum</th><th>Match</th><th>Följt</th><th>Res.</th></tr>" +
     t.entries.map(e => {
       const o = e.outcome;
-      return `<tr><td>${esc((e.date || "").slice(5, 10))}</td><td>${esc(e.opponent)} (${e.home ? "H" : "B"})</td>
-        <td>${esc(brief(e.prediction))}</td><td>${o ? esc(brief(o.played)) : "–"}</td>
+      return `<tr><td>${esc((e.date || "").slice(5, 10))}</td>
+        <td style="white-space:normal"><b>${esc(e.opponent)}</b> (${e.home ? "H" : "B"})<br>
+          <span class="muted">Förslag: ${esc(brief(e.prediction))}${o ? `<br>Spelade: ${esc(brief(o.played))}` : ""}</span></td>
         <td>${o ? `${o.followed.length}/5` : "kommande"}</td>
-        ${o ? `<td class="${o.result}">${o.goals_for}–${o.goals_against}</td>` : "<td></td>"}</tr>`;
+        ${o ? `<td class="${o.result}">${o.goals_for}–${o.goals_against}${o.red_cards ? redCards(o.red_cards.for, o.red_cards.against) : ""}${o.red_cards && o.red_cards.early ? ` <span class="muted">räknas ej</span>` : ""}</td>` : "<td></td>"}</tr>`;
     }).join("");
 }
 
