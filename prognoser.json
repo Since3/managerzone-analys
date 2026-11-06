@@ -39,7 +39,14 @@
    "goals_against": 0,
    "result": "V",
    "gd": 2,
-   "expected": 1.02
+   "expected": 1.02,
+   "red_cards": {
+    "for": [
+     2
+    ],
+    "against": [],
+    "early": true
+   }
   }
  },
  {
@@ -82,7 +89,36 @@
    "goals_against": 2,
    "result": "F",
    "gd": -1,
-   "expected": -0.34
+   "expected": -0.34,
+   "red_cards": {
+    "for": [],
+    "against": [],
+    "early": false
+   }
+  }
+ },
+ {
+  "mid": 1628449793,
+  "created": "2026-11-06T17:28:34+00:00",
+  "date": "2026-11-08 15:45",
+  "opponent_id": 14661,
+  "opponent": "Dynamo Strandnäs",
+  "home": false,
+  "updated": "2026-11-06T17:28:34+00:00",
+  "confidence": "låg",
+  "prediction": {
+   "backs": "4 backar",
+   "formation": "4-3-1-2",
+   "tactic": "longball",
+   "playstyle": "normal",
+   "aggression": "normal"
+  },
+  "confidences": {
+   "backs": "låg",
+   "formation": "låg",
+   "tactic": "låg",
+   "playstyle": "låg",
+   "aggression": "låg"
   }
  }
 ]
