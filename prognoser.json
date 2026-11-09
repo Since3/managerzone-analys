@@ -119,6 +119,58 @@
    "tactic": "låg",
    "playstyle": "låg",
    "aggression": "låg"
+  },
+  "outcome": {
+   "played": {
+    "backs": "4 backar",
+    "formation": "4-3-3",
+    "tactic": "shortpass",
+    "playstyle": "normal",
+    "aggression": "normal"
+   },
+   "followed": [
+    "backs",
+    "playstyle",
+    "aggression"
+   ],
+   "goals_for": 1,
+   "goals_against": 1,
+   "result": "O",
+   "gd": 0,
+   "expected": -0.49,
+   "red_cards": {
+    "for": [
+     69
+    ],
+    "against": [
+     86
+    ],
+    "early": false
+   }
+  }
+ },
+ {
+  "mid": 1628449798,
+  "created": "2026-11-09T00:01:57+00:00",
+  "date": "2026-11-11 10:30",
+  "opponent_id": 2768,
+  "opponent": "Täfte Flyers",
+  "home": false,
+  "updated": "2026-11-09T00:01:57+00:00",
+  "confidence": "medel",
+  "prediction": {
+   "backs": "4 backar",
+   "formation": "4-2-1-3",
+   "tactic": "shortpass",
+   "playstyle": "normal",
+   "aggression": "normal"
+  },
+  "confidences": {
+   "backs": "medel",
+   "formation": "medel",
+   "tactic": "låg",
+   "playstyle": "medel",
+   "aggression": "medel"
   }
  }
 ]
