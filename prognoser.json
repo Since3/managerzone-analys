@@ -171,6 +171,57 @@
    "tactic": "låg",
    "playstyle": "medel",
    "aggression": "medel"
+  },
+  "outcome": {
+   "played": {
+    "backs": "4 backar",
+    "formation": "4-3-3",
+    "tactic": "shortpass",
+    "playstyle": "normal",
+    "aggression": "normal"
+   },
+   "followed": [
+    "backs",
+    "tactic",
+    "playstyle",
+    "aggression"
+   ],
+   "goals_for": 4,
+   "goals_against": 0,
+   "result": "V",
+   "gd": 4,
+   "expected": 1.23,
+   "red_cards": {
+    "for": [],
+    "against": [
+     86
+    ],
+    "early": false
+   }
+  }
+ },
+ {
+  "mid": 1628449806,
+  "created": "2026-11-12T02:03:27+00:00",
+  "date": "2026-11-15 13:00",
+  "opponent_id": 18346,
+  "opponent": "Nytäppet Fc",
+  "home": true,
+  "updated": "2026-11-12T02:03:27+00:00",
+  "confidence": "medel",
+  "prediction": {
+   "backs": "5 backar",
+   "formation": "5-3-1-1",
+   "tactic": "wings",
+   "playstyle": "normal",
+   "aggression": "normal"
+  },
+  "confidences": {
+   "backs": "medel",
+   "formation": "medel",
+   "tactic": "hög",
+   "playstyle": "låg",
+   "aggression": "låg"
   }
  }
 ]
