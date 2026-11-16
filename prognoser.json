@@ -222,6 +222,53 @@
    "tactic": "hög",
    "playstyle": "låg",
    "aggression": "låg"
+  },
+  "outcome": {
+   "played": {
+    "backs": "4 backar",
+    "formation": "4-3-3",
+    "tactic": "shortpass",
+    "playstyle": "normal",
+    "aggression": "normal"
+   },
+   "followed": [
+    "playstyle",
+    "aggression"
+   ],
+   "goals_for": 1,
+   "goals_against": 2,
+   "result": "F",
+   "gd": -1,
+   "expected": 0.11,
+   "red_cards": {
+    "for": [],
+    "against": [],
+    "early": false
+   }
+  }
+ },
+ {
+  "mid": 1628449810,
+  "created": "2026-11-16T00:23:30+00:00",
+  "date": "2026-11-18 15:45",
+  "opponent_id": 14905,
+  "opponent": "Sunderland FC",
+  "home": false,
+  "updated": "2026-11-16T00:23:30+00:00",
+  "confidence": "medel",
+  "prediction": {
+   "backs": "4 backar",
+   "formation": "4-1-2-1-2",
+   "tactic": "wings",
+   "playstyle": "normal",
+   "aggression": "normal"
+  },
+  "confidences": {
+   "backs": "medel",
+   "formation": "låg",
+   "tactic": "låg",
+   "playstyle": "låg",
+   "aggression": "låg"
   }
  }
 ]
