@@ -269,6 +269,54 @@
    "tactic": "låg",
    "playstyle": "låg",
    "aggression": "låg"
+  },
+  "outcome": {
+   "played": {
+    "backs": "4 backar",
+    "formation": "4-3-3",
+    "tactic": "shortpass",
+    "playstyle": "normal",
+    "aggression": "normal"
+   },
+   "followed": [
+    "backs",
+    "playstyle",
+    "aggression"
+   ],
+   "goals_for": 2,
+   "goals_against": 0,
+   "result": "V",
+   "gd": 2,
+   "expected": 2.24,
+   "red_cards": {
+    "for": [],
+    "against": [],
+    "early": false
+   }
+  }
+ },
+ {
+  "mid": 1628449816,
+  "created": "2026-11-19T02:00:59+00:00",
+  "date": "2026-11-22 12:00",
+  "opponent_id": 13699,
+  "opponent": "Anderslöv BK",
+  "home": true,
+  "updated": "2026-11-19T02:00:59+00:00",
+  "confidence": "låg",
+  "prediction": {
+   "backs": "5 backar",
+   "formation": "5-3-1-1",
+   "tactic": "shortpass",
+   "playstyle": "normal",
+   "aggression": "normal"
+  },
+  "confidences": {
+   "backs": "låg",
+   "formation": "låg",
+   "tactic": "låg",
+   "playstyle": "låg",
+   "aggression": "låg"
   }
  }
 ]
