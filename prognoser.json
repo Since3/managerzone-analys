@@ -317,6 +317,30 @@
    "tactic": "låg",
    "playstyle": "låg",
    "aggression": "låg"
+  },
+  "outcome": {
+   "played": {
+    "backs": "4 backar",
+    "formation": "4-3-1-2",
+    "tactic": "shortpass",
+    "playstyle": "normal",
+    "aggression": "normal"
+   },
+   "followed": [
+    "tactic",
+    "playstyle",
+    "aggression"
+   ],
+   "goals_for": 2,
+   "goals_against": 0,
+   "result": "V",
+   "gd": 2,
+   "expected": 0.14,
+   "red_cards": {
+    "for": [],
+    "against": [],
+    "early": false
+   }
   }
  }
 ]
